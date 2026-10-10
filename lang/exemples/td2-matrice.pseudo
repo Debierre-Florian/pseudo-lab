@@ -1,0 +1,25 @@
+action matrice_diagonales
+const var N = 3
+type mat = tableau[1..N][1..N] de type entier
+var M : mat
+var i, j : entier
+
+debut
+	pour i allant de 1 a N faire
+		pour j allant de 1 a N faire
+			sortir("Ligne ", i, ", colonne ", j, " : ")
+			entrer(M[i][j])
+		fpour
+	fpour
+	// on met les deux diagonales à 0
+	pour i allant de 1 a N faire
+		M[i][i] <- 0
+		M[i][N + 1 - i] <- 0
+	fpour
+	pour i allant de 1 a N faire
+		pour j allant de 1 a N faire
+			sortir(M[i][j], " ")
+		fpour
+		retour a la ligne
+	fpour
+fin

@@ -1,0 +1,20 @@
+action inverser
+const var N = 6
+type vecteur = tableau[1..N] de type entier
+var i, temp : entier
+var T : vecteur
+
+debut
+	pour i allant de 1 a N faire
+		T[i] <- i * i
+	fpour
+	// on échange la case i avec la case N+1-i, jusqu'à la moitié
+	pour i allant de 1 a N div 2 faire
+		temp <- T[i]
+		T[i] <- T[N + 1 - i]
+		T[N + 1 - i] <- temp
+	fpour
+	pour i allant de 1 a N faire
+		sortir(T[i], " ")
+	fpour
+fin

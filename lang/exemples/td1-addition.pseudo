@@ -1,0 +1,13 @@
+action addition
+const var prix_menu1 = 15
+const var prix_menu2 = 20
+const var prix_menu3 = 25
+var nombre_menu1, nombre_menu2, nombre_menu3, addition : entier
+
+debut
+	sortir("Combien de menus 1, 2 et 3 veux-tu commander ? ")
+	retour a la ligne
+	entrer(nombre_menu1, nombre_menu2, nombre_menu3)
+	addition <- (prix_menu1 * nombre_menu1) + (prix_menu2 * nombre_menu2) + (prix_menu3 * nombre_menu3)
+	sortir("Voici l'addition : ", addition, " euros")
+fin

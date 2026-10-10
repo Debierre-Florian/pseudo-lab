@@ -1,0 +1,33 @@
+action tableau_recherche
+const var N = 5
+type vecteur = tableau[1..N] de type entier
+var i, user, compteur, derniere : entier
+var T1 : vecteur
+
+debut
+	pour i allant de 1 a N faire
+		sortir("Valeur n°", i, " : ")
+		entrer(T1[i])
+	fpour
+	sortir("Tableau : ")
+	pour i allant de 1 a N faire
+		sortir(T1[i], " ")
+	fpour
+	retour a la ligne
+
+	sortir("Quelle valeur cherches-tu ? ")
+	entrer(user)
+	compteur <- 0
+	derniere <- 0
+	pour i allant de 1 a N faire
+		si (T1[i] = user) alors
+			compteur <- compteur + 1
+			derniere <- i
+		fsi
+	fpour
+	si (compteur = 0) alors
+		sortir("La valeur ", user, " n'est pas dans le tableau")
+	sinon
+		sortir("La valeur ", user, " apparaît ", compteur, " fois, dernière fois à l'indice ", derniere)
+	fsi
+fin

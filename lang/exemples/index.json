@@ -1,0 +1,10 @@
+[
+  { "id": "td1-addition", "titre": "TD1 — Addition de menus", "td": "TD1", "fichier": "td1-addition.pseudo", "test": { "entrees": ["1","2","3"], "contient": "130 euros" } },
+  { "id": "td1-imc", "titre": "TD1 — IMC", "td": "TD1", "fichier": "td1-imc.pseudo", "test": { "entrees": ["70","175"], "contient": "Corpulence normale" } },
+  { "id": "td1-tri3", "titre": "TD1 — Trier 3 valeurs", "td": "TD1", "fichier": "td1-tri3.pseudo", "test": { "entrees": ["9","2","5"], "contient": "2 5 9" } },
+  { "id": "td1-formes", "titre": "TD1 — Formes en étoiles", "td": "TD1", "fichier": "td1-formes.pseudo", "test": { "entrees": ["2","3"], "contient": "*\n**\n***\n" } },
+  { "id": "td1-lendemain", "titre": "TD1 — Lendemain d'une date (cas de)", "td": "TD1", "fichier": "td1-lendemain.pseudo", "test": { "entrees": ["28","2"], "contient": "Lendemain : 1/3" } },
+  { "id": "td2-tableau", "titre": "TD2 — Tableau : recherche d'une valeur", "td": "TD2", "fichier": "td2-tableau.pseudo", "test": { "entrees": ["4","8","4","1","0","4"], "contient": "apparaît 2 fois, dernière fois à l'indice 3" } },
+  { "id": "td2-inverser", "titre": "TD2 — Tableau : inverser", "td": "TD2", "fichier": "td2-inverser.pseudo", "test": { "entrees": [], "contient": "36 25 16 9 4 1" } },
+  { "id": "td2-matrice", "titre": "TD2 — Matrice : diagonales à 0", "td": "TD2", "fichier": "td2-matrice.pseudo", "test": { "entrees": ["1","2","3","4","5","6","7","8","9"], "contient": "0 2 0 \n4 0 6 \n0 8 0 \n" } }
+]

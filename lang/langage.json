@@ -1,0 +1,77 @@
+{
+  "_aide": "FICHIER DE BASE DU PSEUDO-CODE. L'interpréteur ET la coloration syntaxique lisent ce fichier. Pour accepter une nouvelle écriture d'un mot-clé, ajoute-la dans la liste. Les accents et les majuscules sont ignorés (début = debut = DEBUT). Une entrée avec des espaces est une expression de plusieurs mots (ex: \"tant que\").",
+  "version": 1,
+
+  "options": {
+    "sortirRetourLigne": false,
+    "maxInstructions": 3000000
+  },
+
+  "motsCles": {
+    "programme":   ["action", "programme", "algorithme"],
+    "debut":       ["debut"],
+    "fin":         ["fin"],
+    "const":       ["const", "constante", "constantes"],
+    "var":         ["var", "variable", "variables"],
+    "type":        ["type"],
+    "tableau":     ["tableau"],
+
+    "si":          ["si"],
+    "alors":       ["alors"],
+    "sinon":       ["sinon"],
+    "fsi":         ["fsi", "finsi", "fin si"],
+
+    "tantque":     ["tant que", "tantque"],
+    "faire":       ["faire"],
+    "ftq":         ["ftq", "fintq", "fin tant que", "fin tantque"],
+
+    "pour":        ["pour"],
+    "allantde":    ["allant de"],
+    "pas":         ["pas"],
+    "fpour":       ["fpour", "finpour", "fin pour"],
+
+    "repeter":     ["repeter"],
+    "jusqua":      ["jusqua", "jusque"],
+
+    "casde":       ["cas de"],
+    "fcas":        ["fcas", "fincas", "fin cas"],
+
+    "sortir":      ["sortir", "afficher", "ecrire"],
+    "entrer":      ["entrer", "saisir", "lire"],
+    "retourligne": ["retour a la ligne", "retour ligne", "saut de ligne"],
+
+    "et":          ["et", "&&"],
+    "ou":          ["ou", "||"],
+    "non":         ["non"],
+    "div":         ["div"],
+    "mod":         ["mod"],
+
+    "vrai":        ["vrai", "true"],
+    "faux":        ["faux", "false"],
+
+    "de":          ["de"],
+    "a":           ["a"]
+  },
+
+  "_contextuels": "Ces mots-clés peuvent aussi servir de nom de variable (ex: une variable nommée a ou pas).",
+  "contextuels": ["a", "de", "pas"],
+
+  "types": {
+    "entier":    ["entier", "entiers", "int", "integer"],
+    "reel":      ["reel", "reels", "float", "double", "decimal"],
+    "booleen":   ["booleen", "booleens", "bool", "boolean"],
+    "caractere": ["caractere", "charactere", "char", "car"],
+    "chaine":    ["chaine", "chaines", "texte", "string", "str"]
+  },
+
+  "fonctions": {
+    "racine":          ["racine", "sqrt"],
+    "abs":             ["abs", "valeur_absolue"],
+    "partie_entiere":  ["partie_entiere", "ent", "floor", "trunc"],
+    "arrondi":         ["arrondi", "round"],
+    "min":             ["min"],
+    "max":             ["max"],
+    "longueur":        ["longueur", "len"],
+    "aleatoire":       ["aleatoire", "hasard", "random"]
+  }
+}

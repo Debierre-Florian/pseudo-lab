@@ -1,0 +1,49 @@
+// ============================================================
+//  MODÈLE DE BASE — copie ce fichier pour démarrer un programme
+// ============================================================
+action nom_du_programme
+
+// --- constantes (valeur fixe, jamais modifiée) ---
+const var N = 5
+
+// --- types personnalisés (pour les tableaux) ---
+type vecteur = tableau[1..N] de type entier
+
+// --- variables : var nom1, nom2 : type ---
+// types : entier, reel, booleen, caractere, chaine
+var i, valeur, total : entier
+var T : vecteur
+
+debut
+	// sortir(...)  affiche      entrer(x)  lit au clavier
+	// retour a la ligne  saute une ligne
+	total <- 0
+	pour i allant de 1 a N faire
+		sortir("Valeur n°", i, " : ")
+		entrer(valeur)
+		T[i] <- valeur
+		total <- total + valeur
+	fpour
+	retour a la ligne
+
+	si (total > 10) alors
+		sortir("Le total ", total, " dépasse 10")
+	sinon
+		sortir("Le total ", total, " ne dépasse pas 10")
+	fsi
+	retour a la ligne
+fin
+
+// ------------------------------------------------------------
+//  AIDE-MÉMOIRE
+//  Affectation :   x <- 3                (pas x = 3 !)
+//  Comparaison :   =  !=  <  >  <=  >=
+//  Logique :       et   ou   non
+//  Division :      /  (réelle)   div (entière)   mod ou % (reste)
+//  Condition :     si (...) alors ... sinon si (...) alors ... sinon ... fsi
+//  Boucles :       pour i allant de 1 a N [pas 2] faire ... fpour
+//                  tant que (...) faire ... ftq
+//                  repeter ... jusqu'a (...)
+//  Cas :           cas de x :   1 : ...   2, 3 : ...   sinon : ...   fcas
+//  Tableaux :      T[i]      matrice : M[i][j]
+// ------------------------------------------------------------

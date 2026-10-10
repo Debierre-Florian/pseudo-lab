@@ -1,0 +1,24 @@
+action IMC
+var taille, poids, resultat : reel
+
+debut
+	sortir("Poids (kg) : ")
+	entrer(poids)
+	sortir("Taille (cm) : ")
+	entrer(taille)
+	taille <- taille / 100
+	resultat <- poids / (taille * taille)
+	sortir("Votre IMC est de ", resultat)
+	retour a la ligne
+	si (resultat < 18.5) alors
+		sortir("Insuffisance pondérale")
+	sinon si (resultat < 25) alors
+		sortir("Corpulence normale")
+	sinon si (resultat < 30) alors
+		sortir("Surpoids")
+	sinon si (resultat < 35) alors
+		sortir("Obésité modérée")
+	sinon
+		sortir("Obésité sévère")
+	fsi
+fin

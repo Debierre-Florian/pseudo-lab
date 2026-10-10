@@ -1,0 +1,27 @@
+action lendemain
+var jour, mois, max : entier
+
+debut
+	sortir("Jour : ")
+	entrer(jour)
+	sortir("Mois : ")
+	entrer(mois)
+	cas de mois :
+		2 :
+			max <- 28
+		4, 6, 9, 11 :
+			max <- 30
+		sinon :
+			max <- 31
+	fcas
+	si (jour < max) alors
+		jour <- jour + 1
+	sinon
+		jour <- 1
+		mois <- mois + 1
+	fsi
+	si (mois = 13) alors
+		mois <- 1
+	fsi
+	sortir("Lendemain : ", jour, "/", mois)
+fin

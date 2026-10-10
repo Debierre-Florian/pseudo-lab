@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pseudo-Lab — exécute ton pseudo-code</title>
+<meta name="description" content="Écris ton pseudo-code, exécute-le en ligne et partage-le avec ta promo.">
+<link rel="stylesheet" href="vendor/codemirror/codemirror.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="top">
+  <a class="brand" href="#editor" aria-label="Pseudo-Lab, accueil"><span class="brand-mark">⟨/⟩</span> Pseudo-Lab</a>
+  <nav id="nav" aria-label="Navigation principale">
+    <button data-view="editor">Éditeur</button>
+    <button data-view="mine">Mes programmes</button>
+    <button data-view="shared">Partagés</button>
+    <button data-view="admin" hidden>Admin</button>
+    <button data-view="help">Aide</button>
+  </nav>
+  <div id="authbox"></div>
+</header>
+
+<div id="demo-banner" class="banner" hidden>
+  <strong>Mode démo.</strong> Les comptes et programmes sont enregistrés uniquement dans ce navigateur.
+  Inscris-toi avec le pseudo <code>admin</code> pour tester l'interface prof. Pour de vrais comptes partagés, remplis <code>js/config.js</code> (voir le README).
+</div>
+
+<main>
+  <!-- ===================== ÉDITEUR ===================== -->
+  <section id="view-editor" class="view">
+    <div class="toolbar">
+      <div class="tb-group tb-title">
+        <label class="sr-only" for="title">Titre</label>
+        <input id="title" type="text" placeholder="Titre du programme" maxlength="80" autocomplete="off">
+        <label class="sr-only" for="td">TD</label>
+        <input id="td" type="text" list="tds" placeholder="TD" maxlength="20" autocomplete="off">
+        <datalist id="tds">
+          <option value="TD1"><option value="TD2"><option value="TD3"><option value="TD4">
+          <option value="TD5"><option value="TD6"><option value="Perso">
+        </datalist>
+        <span id="dirty" class="dirty" hidden>● non enregistré</span>
+      </div>
+      <div class="tb-group">
+        <label class="sr-only" for="loader">Charger un modèle ou un exemple</label>
+        <select id="loader"><option value="">Charger un modèle ou un exemple…</option></select>
+        <button id="btn-new" class="btn">Nouveau</button>
+        <button id="btn-save" class="btn">Enregistrer</button>
+      </div>
+      <div class="tb-group tb-run">
+        <button id="btn-run" class="btn primary" title="Ctrl + Entrée">▶ Exécuter</button>
+        <button id="btn-stop" class="btn danger" disabled>■ Stop</button>
+      </div>
+    </div>
+    <div id="info-bar" class="info-bar" hidden></div>
+
+    <div class="split">
+      <div class="pane editor-pane">
+        <textarea id="code" aria-label="Code en pseudo-code"></textarea>
+      </div>
+      <div class="pane console-pane">
+        <div class="console-head">
+          <span>Console</span>
+          <label class="opt" title="Si coché, chaque sortir(...) passe à la ligne ensuite"><input type="checkbox" id="opt-nl"> retour à la ligne après sortir</label>
+          <label class="opt" title="Si coché, les variables non déclarées ou non initialisées sont des erreurs"><input type="checkbox" id="opt-strict"> mode strict</label>
+          <button id="btn-clear" class="link">Effacer</button>
+        </div>
+        <div id="console" class="console" role="log" aria-live="polite" tabindex="0"><pre id="out"></pre></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== MES PROGRAMMES ===================== -->
+  <section id="view-mine" class="view page" hidden>
+    <h1>Mes programmes</h1>
+    <div id="mine-body"></div>
+  </section>
+
+  <!-- ===================== PARTAGÉS ===================== -->
+  <section id="view-shared" class="view page" hidden>
+    <h1>Programmes partagés</h1>
+    <p class="lead">Les corrigés et exemples publiés par ton prof. Un clic ouvre une copie que tu peux exécuter et modifier librement.</p>
+    <div id="shared-body"></div>
+  </section>
+
+  <!-- ===================== ADMIN ===================== -->
+  <section id="view-admin" class="view page" hidden>
+    <h1>Administration</h1>
+    <p class="lead">Tu vois tous les programmes. <strong>Publié</strong> = visible par tous dans « Partagés ». <strong>Modèle</strong> = proposé dans la liste « Charger… » de l'éditeur.</p>
+    <div id="admin-body"></div>
+  </section>
+
+  <!-- ===================== AIDE ===================== -->
+  <section id="view-help" class="view page help" hidden>
+    <h1>Aide — le pseudo-code compris par le site</h1>
+    <p class="lead">Les accents et les majuscules sont ignorés (<code>début</code> = <code>debut</code> = <code>DEBUT</code>). La liste complète des mots acceptés est dans <code>lang/langage.json</code>.</p>
+
+    <div class="cards">
+      <article>
+        <h2>Structure</h2>
+<pre>action mon_programme
+const var N = 10
+type vecteur = tableau[1..N] de type entier
+var i, total : entier
+var T : vecteur
+
+debut
+  ...instructions...
+fin</pre>
+        <p>Types : <code>entier</code>, <code>reel</code>, <code>booleen</code>, <code>caractere</code>, <code>chaine</code>.</p>
+      </article>
+      <article>
+        <h2>Entrées / sorties</h2>
+<pre>sortir("Total : ", total)
+entrer(x)
+entrer(a, b, c)
+retour a la ligne</pre>
+        <p><code>sortir</code> ne passe pas à la ligne tout seul (comme dans les TD) : utilise <code>retour a la ligne</code> ou <code>"\n"</code>, ou coche l'option au-dessus de la console.</p>
+      </article>
+      <article>
+        <h2>Calculs et comparaisons</h2>
+<pre>x &lt;- (a + b) * 2
+q &lt;- 17 div 5      // 3
+r &lt;- 17 mod 5      // 2   (% marche aussi)
+y &lt;- 7 / 2         // 3.5
+=  !=  &lt;  &gt;  &lt;=  &gt;=
+et   ou   non       VRAI  FAUX</pre>
+      </article>
+      <article>
+        <h2>Conditions</h2>
+<pre>si (x &gt; 0) alors
+  sortir("positif")
+sinon si (x = 0) alors
+  sortir("nul")
+sinon
+  sortir("négatif")
+fsi</pre>
+<pre>cas de mois :
+  2 : max &lt;- 28
+  4, 6, 9, 11 : max &lt;- 30
+  sinon : max &lt;- 31
+fcas</pre>
+      </article>
+      <article>
+        <h2>Boucles</h2>
+<pre>pour i allant de 1 a N faire
+  ...
+fpour
+
+pour i allant de 10 a 0 pas -2 faire
+  ...
+fpour
+
+tant que (n &gt; 0) faire
+  ...
+ftq
+
+repeter
+  ...
+jusqu'a (n = 0)</pre>
+      </article>
+      <article>
+        <h2>Tableaux et matrices</h2>
+<pre>T[1] &lt;- 5
+sortir(T[i])
+M[i][j] &lt;- 0     // ou M[i, j]</pre>
+        <p>Les bornes sont vérifiées : écrire <code>T[0]</code> ou <code>T[N+1]</code> sur un tableau <code>[1..N]</code> donne une erreur avec le numéro de ligne.</p>
+      </article>
+      <article>
+        <h2>Fonctions disponibles</h2>
+<pre>racine(x)   abs(x)   partie_entiere(x)
+arrondi(x)  min(a,b) max(a,b)
+longueur(texte)   aleatoire(1, 6)</pre>
+      </article>
+      <article>
+        <h2>Messages du site</h2>
+        <p><strong class="c-err">✗ Erreur</strong> : le programme s'arrête, la ligne fautive est surlignée.</p>
+        <p><strong class="c-warn">⚠ Avertissement</strong> : le programme continue mais quelque chose cloche (variable non déclarée, non initialisée, nombre à virgule rangé dans un <code>entier</code>…). Active le <em>mode strict</em> pour en faire des erreurs.</p>
+      </article>
+    </div>
+  </section>
+</main>
+
+<!-- ===================== CONNEXION ===================== -->
+<dialog id="auth-dialog" aria-labelledby="auth-title">
+  <form id="auth-form" method="dialog" autocomplete="on">
+    <h2 id="auth-title">Connexion</h2>
+    <div class="tabs" role="tablist">
+      <button type="button" role="tab" data-mode="login" aria-selected="true">Se connecter</button>
+      <button type="button" role="tab" data-mode="signup" aria-selected="false">Créer un compte</button>
+    </div>
+    <p id="auth-why" class="muted" hidden></p>
+    <label class="field" id="f-pseudo" hidden>Pseudo
+      <input id="a-pseudo" type="text" maxlength="24" autocomplete="nickname" placeholder="ex : flo_42">
+    </label>
+    <label class="field">Email
+      <input id="a-email" type="email" required autocomplete="email">
+    </label>
+    <label class="field">Mot de passe
+      <input id="a-pass" type="password" required minlength="6" autocomplete="current-password">
+    </label>
+    <p id="auth-msg" class="auth-msg" role="alert" hidden></p>
+    <div class="dialog-actions">
+      <button type="button" id="auth-cancel" class="btn">Annuler</button>
+      <button type="submit" id="auth-submit" class="btn primary">Se connecter</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="vendor/codemirror/codemirror.js"></script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

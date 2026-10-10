@@ -1,0 +1,24 @@
+action trie
+var x, y, z, t : entier
+
+debut
+	sortir("Entre trois valeurs X, Y, Z :")
+	retour a la ligne
+	entrer(x, y, z)
+	si (x > y) alors
+		t <- x
+		x <- y
+		y <- t
+	fsi
+	si (x > z) alors
+		t <- x
+		x <- z
+		z <- t
+	fsi
+	si (y > z) alors
+		t <- y
+		y <- z
+		z <- t
+	fsi
+	sortir("Valeurs triées : ", x, " ", y, " ", z)
+fin
