@@ -8,7 +8,7 @@
   },
 
   "motsCles": {
-    "programme":   ["action", "programme", "algorithme"],
+    "programme":   ["action", "programme", "algorithme", "algo"],
     "debut":       ["debut"],
     "fin":         ["fin"],
     "const":       ["const", "constante", "constantes"],
@@ -21,13 +21,13 @@
     "sinon":       ["sinon"],
     "fsi":         ["fsi", "finsi", "fin si"],
 
-    "tantque":     ["tant que", "tantque"],
+    "tantque":     ["tant que", "tantque", "tq"],
     "faire":       ["faire"],
     "ftq":         ["ftq", "fintq", "fin tant que", "fin tantque"],
 
     "pour":        ["pour"],
     "allantde":    ["allant de"],
-    "pas":         ["pas"],
+    "pas":         ["pas", "par pas", "par pas de"],
     "fpour":       ["fpour", "finpour", "fin pour"],
 
     "repeter":     ["repeter"],
