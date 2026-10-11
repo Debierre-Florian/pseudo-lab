@@ -38,7 +38,7 @@
 
     "sortir":      ["sortir", "afficher", "ecrire"],
     "entrer":      ["entrer", "saisir", "lire"],
-    "retourligne": ["retour a la ligne", "retour ligne", "saut de ligne"],
+    "retourligne": ["retour a la ligne", "retour ligne", "saut de ligne", "retourligne", "retour_ligne", "retour_a_la_ligne"],
 
     "fonction":    ["fonction", "function"],
     "procedure":   ["procedure", "procédure"],
