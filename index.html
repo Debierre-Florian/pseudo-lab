@@ -14,6 +14,7 @@
   <a class="brand" href="#editor" aria-label="Pseudo-Lab, accueil"><span class="brand-mark">⟨/⟩</span> Pseudo-Lab</a>
   <nav id="nav" aria-label="Navigation principale">
     <button data-view="editor">Éditeur</button>
+    <button data-view="projects">Projets</button>
     <button data-view="mine">Mes programmes</button>
     <button data-view="shared">Partagés</button>
     <button data-view="admin" hidden>Admin</button>
@@ -49,6 +50,7 @@
         <button id="btn-save" class="btn">Enregistrer</button>
       </div>
       <div class="tb-group tb-run">
+        <span id="run-lock" class="run-lock" hidden></span>
         <button id="btn-run" class="btn primary" title="Ctrl + Entrée">▶ Exécuter</button>
         <button id="btn-stop" class="btn danger" disabled>■ Stop</button>
       </div>
@@ -71,6 +73,13 @@
     </div>
   </section>
 
+  <!-- ===================== PROJETS ===================== -->
+  <section id="view-projects" class="view page" hidden>
+    <h1>Projets</h1>
+    <p class="lead" id="projects-lead">Les exercices donnés par ton prof. Ouvre un projet pour y faire ton travail : il est enregistré à ton nom dans ce projet.</p>
+    <div id="projects-body"></div>
+  </section>
+
   <!-- ===================== MES PROGRAMMES ===================== -->
   <section id="view-mine" class="view page" hidden>
     <h1>Mes programmes</h1>
@@ -87,7 +96,7 @@
   <!-- ===================== ADMIN ===================== -->
   <section id="view-admin" class="view page" hidden>
     <h1>Administration</h1>
-    <p class="lead">Tu vois tous les programmes. <strong>Publié</strong> = visible par tous dans « Partagés ». <strong>Modèle</strong> = proposé dans la liste « Charger… » de l'éditeur.</p>
+    <p class="lead">Réglages des permissions, puis tous les programmes. <strong>Publié</strong> = visible par tous dans « Partagés ». <strong>Modèle</strong> = proposé dans la liste « Charger… » de l'éditeur.</p>
     <div id="admin-body"></div>
   </section>
 
@@ -197,6 +206,11 @@ fin</pre>
         <p>Une variable locale masque une variable globale de même nom. La récursivité marche (200 appels imbriqués au maximum). Un tableau en paramètre se déclare avec un type : <code>tab : vecteur</code>.</p>
       </article>
       <article>
+        <h2>Projets</h2>
+        <p>L'onglet <strong>Projets</strong> contient les exercices donnés par ton prof. « Commencer » ouvre le code de départ dans l'éditeur, avec la consigne au-dessus ; « Enregistrer » range ton travail dans ce projet (un seul travail par projet).</p>
+        <p>Ton prof peut désactiver l'exécution (pour tout le monde, pour un projet ou pour ton compte), limiter l'enregistrement aux projets, et choisir si tu vois le travail des autres. Le bouton ▶ affiche alors un 🔒 avec la raison.</p>
+      </article>
+      <article>
         <h2>Fonctions disponibles</h2>
 <pre>racine(x)   abs(x)   partie_entiere(x)
 arrondi(x)  min(a,b) max(a,b)
@@ -233,6 +247,42 @@ longueur(texte)   aleatoire(1, 6)</pre>
     <div class="dialog-actions">
       <button type="button" id="auth-cancel" class="btn">Annuler</button>
       <button type="submit" id="auth-submit" class="btn primary">Se connecter</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- ===================== PROJET (admin) ===================== -->
+<dialog id="project-dialog" class="wide" aria-labelledby="project-title">
+  <form id="project-form" method="dialog">
+    <h2 id="project-title">Nouveau projet</h2>
+    <label class="field">Titre
+      <input id="p-title" type="text" required maxlength="80" autocomplete="off" placeholder="ex : TD3 — fonctions">
+    </label>
+    <label class="field">TD <span class="muted">(facultatif)</span>
+      <input id="p-td" type="text" list="tds" maxlength="20" autocomplete="off" placeholder="TD3">
+    </label>
+    <label class="field">Consigne
+      <textarea id="p-instructions" rows="4" maxlength="4000" placeholder="Ce que les étudiants doivent faire…"></textarea>
+    </label>
+    <label class="field">Code de départ <span class="muted">(ce que l'étudiant trouve en ouvrant le projet)</span>
+      <textarea id="p-code" class="mono" rows="7" spellcheck="false"></textarea>
+    </label>
+    <p class="field-actions"><button type="button" id="p-take-editor" class="link">Prendre le code de l'éditeur</button>
+      · <button type="button" id="p-take-modele" class="link">Prendre le modèle de base</button></p>
+    <fieldset class="choice">
+      <legend>Exécution dans ce projet</legend>
+      <label><input type="radio" name="p-run" value="1" required> Autorisée</label>
+      <label><input type="radio" name="p-run" value="0"> Désactivée</label>
+    </fieldset>
+    <fieldset class="choice">
+      <legend>Les étudiants voient le travail des autres</legend>
+      <label><input type="radio" name="p-share" value="1" required> Oui</label>
+      <label><input type="radio" name="p-share" value="0"> Non</label>
+    </fieldset>
+    <p id="project-msg" class="auth-msg" role="alert" hidden></p>
+    <div class="dialog-actions">
+      <button type="button" id="project-cancel" class="btn">Annuler</button>
+      <button type="submit" id="project-submit" class="btn primary">Créer le projet</button>
     </div>
   </form>
 </dialog>

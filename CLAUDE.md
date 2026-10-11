@@ -31,7 +31,7 @@ Public : promo de BUT Informatique, cours R1.01 « Algo ». Le pseudo-code repro
 ## 3. Arborescence
 
 ```
-index.html                 page unique (vues : éditeur, mes programmes, partagés, admin, aide) + dialogue de connexion
+index.html                 page unique (vues : éditeur, projets, mes programmes, partagés, admin, aide) + dialogues connexion / projet
 css/style.css              thème clair/sombre, mise en page, console
 js/pseudo.js               ★ INTERPRÉTEUR (lexer → parser → interpréteur). Marche aussi dans Node.
 js/app.js                  interface : éditeur CodeMirror, console, vues, comptes, enregistrement
@@ -42,7 +42,8 @@ lang/langage.json          ★ FICHIER DE BASE : mots-clés, types, fonctions in
 lang/modele.pseudo         squelette proposé aux étudiants (bouton « Charger… → Modèle de base »)
 lang/exemples/index.json   liste des exemples (id, titre, td, fichier, test{entrees, contient})
 lang/exemples/*.pseudo     8 exemples corrigés (TD1/TD2)
-supabase/schema.sql        tables profiles + programs, RLS, triggers (à exécuter une fois dans Supabase)
+supabase/schema.sql        tables profiles + programs + settings + projects, RLS, triggers (installation complète)
+supabase/migration-projets.sql  migration idempotente « projets + permissions » (déjà incluse à la fin de schema.sql)
 tests/run.mjs              tests Node de l'interpréteur + exemples + modèle   → node tests/run.mjs
 tests/td-reels.mjs         passe les programmes d'un fichier de TD (.md) à l'interpréteur
 vendor/                    CodeMirror 5, supabase-js
@@ -173,7 +174,11 @@ Paramètres : `,` ou `;` comme séparateur, groupement `a, b : entier`, `var` = 
 
 ### Interface commune des backends (`backend-local.js` et `backend-supabase.js`)
 `demo, session(), signUp({email,password,pseudo}), signIn({email,password}), signOut(), listMine(), listShared(), listAll() (admin), listTemplates(),
-save({id,title,td,code}), remove(id), setFlags(id,{published,is_template}) (admin)`. Un programme : `{id, owner, author, title, td, code, published, is_template, created_at, updated_at}`.
+save({id,title,td,code,project_id}), remove(id), setFlags(id,{published,is_template}) (admin),
+getSettings(), setSettings(patch) (admin), listProjects(), getProject(id), saveProject({id?,…}) (admin), removeProject(id) (admin),
+listProjectWork(projectId), listStudents() (admin), setStudent(id, patch) (admin), setAllStudents(patch) (admin)`.
+Un programme : `{id, owner, author, title, td, code, project_id, published, is_template, created_at, updated_at}`.
+`session()` renvoie aussi `can_run, can_free, can_view_others`. Un projet : `{id, title, td, instructions, starter_code, run_enabled, share_work, created_at, updated_at}`.
 Toute nouvelle fonctionnalité de données doit être ajoutée **aux deux backends** et à `schema.sql`.
 
 ## 8. Base de données et sécurité (`supabase/schema.sql`)
@@ -182,6 +187,11 @@ Toute nouvelle fonctionnalité de données doit être ajoutée **aux deux backen
 - `programs(id, owner → profiles, title, td, code, published, is_template, created_at, updated_at)`.
 - **RLS activée** : un étudiant lit ses programmes + ceux `published`/`is_template` ; l'admin (`is_admin()`) lit/modifie/supprime tout.
 - Trigger `programs_guard` : seul l'admin peut changer `published`/`is_template` ; le propriétaire ne change jamais ; `updated_at` automatique.
+- `settings` (une ligne, id=1 : `run_enabled`, `free_programs`), `projects` (créés par l'admin seulement), `programs.project_id`
+  (unique par (owner, project_id) ; `on delete set null` : supprimer un projet rend le travail « libre »).
+  Permissions = **ET** de tous les niveaux : exécuter = global ET `profiles.can_run` ET `projects.run_enabled` (interface seulement, voir `runBlock` dans app.js) ;
+  enregistrer hors projet = `settings.free_programs` ET `profiles.can_free` (RLS via `can_free()`) ; voir le travail des autres =
+  `projects.share_work` ET `profiles.can_view_others` (RLS via `can_see_work()`). L'admin a toujours tout. `profiles_guard` empêche de changer le rôle depuis le site.
 - Le rôle admin ne se donne **que** par SQL : `update public.profiles set role='admin' where lower(pseudo)=lower('Pseudo');`
 - Réglage Supabase nécessaire : Authentication → Providers → Email : **Enable email provider = ON**, **Confirm email = OFF** (sinon la limite d'envoi de mails bloque les inscriptions).
 - Toute modification du schéma doit être fournie comme **script SQL de migration idempotent** (`create … if not exists`, `drop policy if exists`…) que l'utilisateur colle dans Supabase › SQL Editor, + mise à jour de `schema.sql`.
@@ -331,6 +341,12 @@ Attention aux **conflits** : `E`, `S` sont des noms de variable plausibles → l
 7. Aide, modèle, README et ce fichier mis à jour. Résumé final en français avec la liste exacte des fichiers à renvoyer sur GitHub.
 
 ---
+
+## 12bis. ✅ FAIT — Projets et permissions (octobre 2026)
+Choix de l'utilisateur : projet = exercice (titre, TD, consigne, code de départ) créé par l'admin, un travail par étudiant ;
+réglages par projet ET par étudiant ET global, combinés par ET ; le formulaire de création d'un projet impose de choisir
+exécution oui/non et travail des autres oui/non (radios sans valeur par défaut). `refreshPerms()` relit réglages + profil + projet
+juste avant chaque exécution. Tests : section « permissions » de `tests/run.mjs` (backend démo).
 
 ## 13. Idées d'évolutions ultérieures (ne pas les faire sans demande)
 

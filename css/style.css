@@ -200,6 +200,33 @@ dialog h2 { margin: 0 0 12px; font-size: 20px; }
 .auth-msg { padding: 8px 10px; border-radius: 8px; background: var(--danger-soft); color: var(--danger); font-size: 14px; margin: 0 0 12px; }
 .auth-msg.ok { background: var(--accent-soft); color: var(--accent); }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+dialog.wide { width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 32px); }
+textarea { font: inherit; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); display: block; width: 100%; margin-top: 4px; resize: vertical; }
+textarea.mono { font-family: var(--mono); font-size: 13px; line-height: 1.5; white-space: pre; overflow-x: auto; }
+.field-actions { margin: -6px 0 12px; font-size: 13px; color: var(--muted); }
+fieldset.choice { border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px 10px; margin: 0 0 12px; display: flex; gap: 6px 18px; flex-wrap: wrap; font-size: 14px; }
+fieldset.choice legend { font-weight: 500; padding: 0 4px; }
+fieldset.choice label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+
+/* ---------- Projets et permissions ---------- */
+.run-lock { font-size: 13px; color: var(--warn); max-width: 34ch; }
+.info-bar { white-space: pre-wrap; }
+.info-bar strong { font-weight: 600; }
+.badge.off { background: var(--danger-soft); color: var(--danger); }
+.card .consigne { font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 7.5em; overflow: hidden; margin: 0; }
+.card .row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: auto; padding-top: 6px; }
+.card .row .btn { margin-top: 0; }
+.card .toggles { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.card .toggles label { display: flex; gap: 6px; align-items: center; cursor: pointer; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin: 0 0 18px; }
+.panel h2 { font-size: 16px; margin: 0 0 4px; }
+.panel .lead { margin-bottom: 10px; font-size: 14px; }
+.switches { display: flex; flex-direction: column; gap: 8px; margin: 0 0 14px; }
+.switches label { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; font-size: 14px; }
+.switches input { margin-top: 3px; }
+table.list th .all { display: block; margin-top: 3px; font-size: 11px; text-transform: none; letter-spacing: 0; white-space: nowrap; }
+table.list td.c, table.list th.c { text-align: center; }
+.back { margin: 0 0 12px; }
 
 .toast {
   position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); z-index: 50;

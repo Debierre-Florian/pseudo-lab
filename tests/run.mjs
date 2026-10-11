@@ -665,6 +665,45 @@ fin`);
   console.log(modele.error ? `✗ modele.pseudo : ${modele.error}` : '✓ modele.pseudo');
   if (modele.error) fails++;
 
+  // ================= permissions (backend démo = mêmes règles que supabase/schema.sql) =================
+  const { createLocalBackend } = await import('../js/backend-local.js');
+  const B = createLocalBackend();
+  const ok = (name, cond) => { console.log(cond ? `✓ ${name}` : `✗ ${name}`); if (!cond) fails++; };
+  const refuse = async (name, fn) => { try { await fn(); ok(name, false); } catch { ok(name, true); } };
+  const as = (email) => B.signIn({ email, password: 'secret1' });
+  await B.signUp({ email: 'a@x.fr', password: 'secret1', pseudo: 'admin' });
+  const alice = await B.signUp({ email: 'alice@x.fr', password: 'secret1', pseudo: 'alice' });
+  const bob = await B.signUp({ email: 'bob@x.fr', password: 'secret1', pseudo: 'bob' });
+  ok('permissions : tout est autorisé par défaut', bob.can_run && bob.can_free && bob.can_view_others);
+  await refuse('permissions : un étudiant ne peut pas créer de projet', () => B.saveProject({ title: 'X' }));
+  await refuse('permissions : un étudiant ne peut pas changer les réglages', () => B.setSettings({ run_enabled: false }));
+  await as('a@x.fr');
+  const pr = await B.saveProject({ title: 'TD3', starter_code: 'action a\ndebut\nfin', run_enabled: false, share_work: false });
+  await B.setSettings({ free_programs: false });
+  await as('alice@x.fr');
+  await refuse('permissions : programmes libres coupés en global → refus', () => B.save({ title: 'libre', td: '', code: '' }));
+  const w = await B.save({ title: 'TD3', td: '', code: 'x', project_id: pr.id });
+  ok('permissions : enregistrer dans un projet reste possible', w.project_id === pr.id);
+  await refuse('permissions : un seul travail par étudiant et par projet', () => B.save({ title: 'bis', td: '', code: '', project_id: pr.id }));
+  await as('bob@x.fr');
+  ok('permissions : travail des autres caché si le projet ne le partage pas', (await B.listProjectWork(pr.id)).length === 0);
+  await as('a@x.fr');
+  await B.setSettings({ free_programs: true });
+  await B.saveProject({ id: pr.id, share_work: true });
+  await B.setStudent(alice.id, { can_free: false, can_view_others: false });
+  await as('bob@x.fr');
+  ok('permissions : travail des autres visible (projet ET étudiant d\'accord)', (await B.listProjectWork(pr.id)).length === 1);
+  ok('permissions : programme libre permis pour bob', !!(await B.save({ title: 'libre', td: '', code: '' })).id);
+  await as('alice@x.fr');
+  await refuse('permissions : programme libre refusé pour alice seule', () => B.save({ title: 'libre', td: '', code: '' }));
+  ok('permissions : alice ne voit pas le travail des autres (réglage individuel)', (await B.listProjectWork(pr.id)).every((p) => p.owner === alice.id));
+  ok('permissions : réglages individuels renvoyés par session()', (await B.session()).can_free === false);
+  await as('a@x.fr');
+  await B.setAllStudents({ can_run: false });
+  ok('permissions : réglage pour tous les étudiants', (await B.listStudents()).every((s) => s.can_run === false));
+  await B.removeProject(pr.id);
+  ok('permissions : supprimer un projet garde le travail (devient libre)', (await B.listAll()).some((p) => p.id === w.id && p.project_id === null));
+
   console.log(fails ? `\n${fails} échec(s)` : '\nTout est vert.');
   process.exit(fails ? 1 : 0);
 }

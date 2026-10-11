@@ -41,6 +41,10 @@ update public.profiles set role = 'admin' where lower(pseudo) = lower('TonPseudo
 
 Recharge le site : l'onglet **Admin** apparaît.
 
+### d) Mise à jour « projets + permissions » (si ta base existait avant)
+Dans le SQL Editor de Supabase, colle tout `supabase/migration-projets.sql` → **Run** (une seule fois ; sans danger si relancé).
+Tant que ce n'est pas fait, le site marche mais l'onglet Projets affiche « La base n'est pas à jour ».
+
 ## 3. Qui peut faire quoi
 
 | | Étudiant | Admin (toi) |
@@ -51,6 +55,16 @@ Recharge le site : l'onglet **Admin** apparaît.
 | Voir les programmes **publiés** | ✔ | ✔ |
 | Publier / retirer, marquer « modèle » | ✘ | ✔ |
 | Supprimer | les siens | tous |
+| Créer / modifier / supprimer des **projets** | ✘ | ✔ |
+| Travailler dans un projet | ✔ (un travail par projet) | ✔ voit le travail de tous |
+| Voir le travail des autres dans un projet | si le projet **et** son compte l'autorisent | ✔ |
+| Exécuter | si le global, son compte **et** le projet l'autorisent | ✔ toujours |
+| Enregistrer hors projet (« programmes libres ») | si le global **et** son compte l'autorisent | ✔ |
+
+Les réglages se font dans **Admin → Réglages** (global + une case par étudiant, avec « tous / aucun » par colonne)
+et sur chaque carte de **Projets** (exécution, travail des autres ; le formulaire de création oblige à choisir).
+⚠ Le blocage de l'exécution est fait par l'interface : le pseudo-code tourne dans le navigateur, un étudiant
+très motivé pourrait le contourner (outils de développement). Enregistrement et lecture, eux, sont protégés par la base.
 
 Un étudiant qui ouvre un programme partagé obtient une **copie** : il peut l'exécuter et la modifier sans toucher à l'original.
 Les règles sont appliquées par la base (RLS + trigger dans `schema.sql`), pas seulement par l'interface.
