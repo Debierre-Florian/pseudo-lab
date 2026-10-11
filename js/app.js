@@ -28,7 +28,7 @@ const state = {
   lang: null, langJson: null, backend: null, me: null, cm: null,
   modele: '', examples: [], templates: [],
   settings: { run_enabled: true, free_programs: true }, projects: [],
-  doc: { id: null, owner: null, author: null, isCopy: false, project: null },
+  doc: { id: null, owner: null, author: null, isCopy: false, project: null, opened: false },
   dirty: false, running: false, interp: null, errLine: null, view: 'editor',
 };
 
@@ -159,14 +159,16 @@ function setDirty(v) { state.dirty = v; $('#dirty').hidden = !v; }
 /* ===================================================================
    Document courant
    =================================================================== */
-function setDoc({ id = null, owner = null, author = null, isCopy = false, title = '', td = '', code, project = null }) {
-  state.doc = { id, owner, author, isCopy, project };
+// opened = un projet ou un programme a été ouvert : c'est seulement alors qu'un étudiant peut aller dans l'éditeur
+function setDoc({ id = null, owner = null, author = null, isCopy = false, title = '', td = '', code, project = null, opened = true }) {
+  state.doc = { id, owner, author, isCopy, project, opened };
   $('#title').value = title; $('#td').value = td;
   state.cm.setValue(code); state.cm.clearHistory();
   clearErrLine(); setDirty(false);
   renderInfoBar();
   updateRunButton();
   applyEditorRules();
+  updateNav();
 }
 function renderInfoBar() {
   const { author, owner, isCopy, project } = state.doc;
@@ -209,7 +211,7 @@ async function save() {
   try {
     const canUpdate = state.doc.id && !state.doc.isCopy;
     const row = await state.backend.save({ id: canUpdate ? state.doc.id : null, title, td, code: state.cm.getValue(), project_id: project ? project.id : null });
-    state.doc = { id: row.id, owner: row.owner, author: row.author, isCopy: false, project: state.doc.project };
+    state.doc = { id: row.id, owner: row.owner, author: row.author, isCopy: false, project: state.doc.project, opened: true };
     renderInfoBar();
     $('#title').value = row.title;
     setDirty(false);
@@ -509,7 +511,7 @@ async function renderProjects() {
   const body = $('#projects-body');
   $('#projects-lead').textContent = isAdmin()
     ? 'Crée des exercices pour la promo. Chaque étudiant y fait son propre travail ; tu choisis pour chaque projet si l\'exécution est permise et si les étudiants voient le travail des autres.'
-    : 'Les exercices donnés par ton prof. Ouvre un projet pour y faire ton travail : il est enregistré à ton nom dans ce projet.';
+    : 'Les exercices donnés par ton prof. Choisis un projet pour ouvrir l\'éditeur et y faire ton travail : il est enregistré à ton nom dans ce projet.';
   if (!state.me) return needLogin(body, 'Connecte-toi pour voir les projets de ton prof.');
   body.textContent = 'Chargement…';
   try {
@@ -647,12 +649,21 @@ async function submitProject(e) {
    Navigation
    =================================================================== */
 const VIEWS = ['home', 'editor', 'projects', 'mine', 'shared', 'admin', 'help'];
-const PUBLIC_VIEWS = ['home', 'help'];   // seules pages visibles sans être connecté
+// Sans compte : accueil seulement. Étudiant : l'éditeur s'ouvre après avoir choisi un projet (ou un de ses
+// programmes) ; Aide et Admin sont réservées à l'admin.
+const canOpenEditor = () => isAdmin() || (!!state.me && state.doc.opened);
+function viewAllowed(v) {
+  if (!state.me) return v === 'home';
+  if (v === 'home') return false;
+  if (v === 'admin' || v === 'help') return isAdmin();
+  if (v === 'editor') return canOpenEditor();
+  return VIEWS.includes(v);
+}
+function updateNav() {
+  for (const b of $$('#nav button')) b.hidden = !viewAllowed(b.dataset.view);
+}
 function showView(name) {
-  if (!VIEWS.includes(name)) name = state.me ? 'editor' : 'home';
-  if (!state.me && !PUBLIC_VIEWS.includes(name)) name = 'home';
-  if (state.me && name === 'home') name = 'projects';
-  if (name === 'admin' && !isAdmin()) name = 'editor';
+  if (!viewAllowed(name)) name = !state.me ? 'home' : isAdmin() && !VIEWS.includes(name) ? 'editor' : 'projects';
   state.view = name;
   for (const v of VIEWS) $('#view-' + v).hidden = v !== name;
   for (const b of $$('#nav button')) {
@@ -678,10 +689,7 @@ function renderAuthBox() {
   } else {
     box.replaceChildren(h('button', { class: 'btn small primary', onclick: () => openAuth() }, 'Connexion'));
   }
-  for (const b of $$('#nav button')) {
-    const v = b.dataset.view;
-    b.hidden = v === 'admin' ? !isAdmin() : !state.me && !PUBLIC_VIEWS.includes(v);
-  }
+  updateNav();
   $('#loader').hidden = !isAdmin();   // « Charger un modèle ou un exemple » : réservé à l'admin
   renderInfoBar();
   updateRunButton();
@@ -691,7 +699,7 @@ async function logout() {
   if (!confirmDiscard()) return;
   await state.backend.signOut();
   state.me = null;
-  setDoc({ code: state.modele });
+  setDoc({ code: state.modele, opened: false });
   renderAuthBox();
   con.clear();
   showView('home');
@@ -731,7 +739,7 @@ async function submitAuth(e) {
     renderAuthBox(); refreshTemplates();
     toast(`Bienvenue ${state.me.pseudo} !`);
     refreshPerms();
-    showView(PUBLIC_VIEWS.includes(state.view) && state.view !== 'help' ? 'projects' : state.view);
+    showView(isAdmin() ? 'editor' : 'projects');
   } catch (err) { authMsg(err.message, !!err.info); }
   finally { btn.disabled = false; }
 }

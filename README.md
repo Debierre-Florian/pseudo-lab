@@ -61,7 +61,8 @@ Tant que ce n'est pas fait, le site marche mais l'onglet Projets affiche « La b
 | Exécuter | si le global, son compte **et** le projet l'autorisent | ✔ toujours |
 | Enregistrer hors projet (« programmes libres ») | si le global **et** son compte l'autorisent | ✔ |
 
-Sans être connecté, on ne voit que la page d'**accueil** et l'**Aide**. La liste « Charger un modèle ou un exemple »
+Sans être connecté, on ne voit que la page d'**accueil**. Un étudiant arrive sur **Projets** : l'éditeur ne s'ouvre
+qu'une fois un projet (ou un de ses programmes) choisi. L'onglet **Aide** est réservé à l'admin. La liste « Charger un modèle ou un exemple »
 n'est visible que par l'admin. Un étudiant ne peut pas renommer son travail de projet (titre et TD = ceux du projet,
 imposés aussi par la base) ; sans « programmes libres », il n'a plus « Nouveau » et ne peut enregistrer que dans un projet.
 

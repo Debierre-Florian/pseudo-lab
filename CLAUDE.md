@@ -348,8 +348,9 @@ réglages par projet ET par étudiant ET global, combinés par ET ; le formulair
 exécution oui/non et travail des autres oui/non (radios sans valeur par défaut). `refreshPerms()` relit réglages + profil + projet
 juste avant chaque exécution. Tests : section « permissions » de `tests/run.mjs` (backend démo).
 
-Ensuite : page d'**accueil** (`view-home`) pour les visiteurs non connectés (seules `home` et `help` sont publiques,
-`PUBLIC_VIEWS` dans app.js) ; liste « Charger… » réservée à l'admin ; `applyEditorRules()` verrouille titre/TD (travail de
+Ensuite : page d'**accueil** (`view-home`) pour les visiteurs non connectés (seule page publique) ; accès aux vues
+décidé par `viewAllowed()` dans app.js : étudiant → l'éditeur seulement après avoir ouvert un projet ou un programme
+(`state.doc.opened`), Aide et Admin réservées à l'admin ; liste « Charger… » réservée à l'admin ; `applyEditorRules()` verrouille titre/TD (travail de
 projet, ou sans programmes libres), cache « Nouveau » et désactive « Enregistrer » hors projet. Le trigger `programs_guard`
 impose le titre/TD du projet au travail d'un étudiant. L'admin garde toutes les fonctionnalités.
 
