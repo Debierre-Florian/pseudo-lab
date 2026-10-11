@@ -1,0 +1,18 @@
+// Procédure avec paramètres « var » (CM) : q et r sont modifiés pour l'appelant
+action TestDivision
+
+procedure division_entiere(a : entier, b : entier; var q : entier, var r : entier)
+/* calcul du quotient et du reste de la division entière de a par b */
+debut
+	q <- a div b
+	r <- a mod b
+fin
+
+var
+	nb, d, quotient, reste : entier
+debut
+	sortir("Entrez deux entiers (le premier >= le second) : ")
+	entrer(nb, d)
+	division_entiere(nb, d, quotient, reste)
+	sortir("(quotient, reste) de la division de ", nb, " par ", d, " = ", quotient, " ", reste)
+fin

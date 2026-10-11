@@ -46,4 +46,20 @@ fin
 //                  repeter ... jusqu'a (...)
 //  Cas :           cas de x :   1 : ...   2, 3 : ...   sinon : ...   fcas
 //  Tableaux :      T[i]      matrice : M[i][j]
+//
+//  Sous-programmes (à écrire après « action ... » et AVANT le « debut » du programme) :
+//    fonction carre(x : entier) : entier      // une fonction retourne UN résultat
+//    var y : entier                           // variables locales
+//    debut
+//      y <- x * x
+//      retourner(y)
+//    fin
+//
+//    procedure echanger(var a : entier, var b : entier)   // « var » = passage par variable :
+//    var t : entier                                       // a et b sont modifiés pour l'appelant
+//    debut                                                // sans « var » = passage par valeur (copie)
+//      t <- a   a <- b   b <- t
+//    fin
+//
+//  Appels :        r <- carre(5)       sortir(carre(2) + 1)       echanger(u, v)
 // ------------------------------------------------------------

@@ -1,0 +1,42 @@
+// Récursivité : une fonction qui s'appelle elle-même (il faut un cas d'arrêt !)
+action recursivite
+
+fonction factorielle(n : entier) : entier
+debut
+	si n <= 1 alors
+		retourner 1        // cas d'arrêt
+	fsi
+	retourner n * factorielle(n - 1)
+fin
+
+fonction fibonacci(n : entier) : entier
+debut
+	si n < 2 alors
+		retourner n
+	fsi
+	retourner fibonacci(n - 1) + fibonacci(n - 2)
+fin
+
+fonction est_pair(nombre : entier) : booleen
+debut
+	retourner nombre mod 2 = 0
+fin
+
+var
+	n, i : entier
+debut
+	sortir("Entrez un entier entre 0 et 15 : ")
+	entrer(n)
+	sortir(n, "! = ", factorielle(n))
+	retour a la ligne
+	sortir("Fibonacci : ")
+	pour i allant de 0 a n faire
+		sortir(fibonacci(i), " ")
+	fpour
+	retour a la ligne
+	si est_pair(factorielle(n)) alors
+		sortir(n, "! est pair")
+	sinon
+		sortir(n, "! est impair")
+	fsi
+fin

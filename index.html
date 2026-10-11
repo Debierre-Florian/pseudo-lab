@@ -168,6 +168,35 @@ M[i][j] &lt;- 0     // ou M[i, j]</pre>
         <p>Les bornes sont vérifiées : écrire <code>T[0]</code> ou <code>T[N+1]</code> sur un tableau <code>[1..N]</code> donne une erreur avec le numéro de ligne.</p>
       </article>
       <article>
+        <h2>Fonctions et procédures</h2>
+<pre>action principal
+
+fonction carre(x : entier) : entier
+var y : entier          // variables locales
+debut
+  y &lt;- x * x
+  retourner(y)
+fin
+
+procedure echanger(var a : entier, var b : entier)
+var t : entier
+debut
+  t &lt;- a
+  a &lt;- b
+  b &lt;- t
+fin
+
+var u, v : entier
+debut
+  u &lt;- carre(5)
+  v &lt;- 1
+  echanger(u, v)    // appel : juste le nom
+fin</pre>
+        <p>Les sous-programmes s'écrivent <strong>avant le <code>debut</code></strong> du programme principal. Une <strong>fonction</strong> retourne un résultat avec <code>retourner(...)</code> ; une <strong>procédure</strong> ne retourne rien.</p>
+        <p>Paramètres : sans mot-clé = <strong>par valeur</strong> (copie, l'appelant ne change pas) ; avec <code>var</code> = <strong>par variable</strong> (l'appelant est modifié, il faut donner une variable). On peut séparer les paramètres par <code>,</code> ou <code>;</code> et grouper <code>a, b : entier</code>.</p>
+        <p>Une variable locale masque une variable globale de même nom. La récursivité marche (200 appels imbriqués au maximum). Un tableau en paramètre se déclare avec un type : <code>tab : vecteur</code>.</p>
+      </article>
+      <article>
         <h2>Fonctions disponibles</h2>
 <pre>racine(x)   abs(x)   partie_entiere(x)
 arrondi(x)  min(a,b) max(a,b)

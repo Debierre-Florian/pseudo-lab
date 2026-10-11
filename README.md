@@ -67,6 +67,11 @@ Détails de comportement :
 * Accents et majuscules ignorés ; `=` et `==`, `%` et `mod`, `faire` ou `alors`… sont tolérés.
 * Erreurs en français avec numéro de ligne. Avertissements (variable non déclarée, non initialisée, décimal rangé dans un `entier`) ; **mode strict** pour les transformer en erreurs.
 * Boucle infinie : arrêt automatique après 3 000 000 d'instructions, et bouton **Stop**.
+* **Fonctions et procédures** (syntaxe du CM R1.01) : écrites après `action …` et avant le `debut` du programme
+  (ou après son `fin`). `fonction nom(x : entier) : entier … retourner(…)`, `procedure nom(a : entier; var r : reel)`.
+  Paramètres par valeur (copie) ou par variable (`var`), variables locales, accès aux variables globales, récursivité
+  (200 appels imbriqués au maximum). Appel direct : `r <- carre(5)`, `echanger(u, v)`. `entrer` marche aussi dans une
+  fonction. `FIN FONCTION` / `FIN PROCEDURE` après le `fin` sont tolérés.
 
 ## 5. Tests
 
@@ -77,7 +82,7 @@ node tests/td-reels.mjs chemin/vers/TD.md       # passe les programmes d'un fich
 
 ## 6. Pas (encore) géré
 
-Procédures et fonctions définies par l'étudiant, enregistrements (structures), fichiers.
+Enregistrements (structures), fichiers, fonctions qui retournent un tableau.
 Le code est organisé pour les ajouter : `js/pseudo.js` (lexer → parser → interpréteur).
 
 ## Structure

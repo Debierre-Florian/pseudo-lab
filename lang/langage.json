@@ -40,6 +40,11 @@
     "entrer":      ["entrer", "saisir", "lire"],
     "retourligne": ["retour a la ligne", "retour ligne", "saut de ligne"],
 
+    "fonction":    ["fonction", "function"],
+    "procedure":   ["procedure", "procédure"],
+    "retourner":   ["retourner", "retourne", "retournez", "renvoyer", "renvoie"],
+    "ffonction":   ["fin fonction", "ffonction", "finfonction", "fin procedure", "fprocedure", "finprocedure"],
+
     "et":          ["et", "&&"],
     "ou":          ["ou", "||"],
     "non":         ["non"],
@@ -61,7 +66,7 @@
     "reel":      ["reel", "reels", "float", "double", "decimal"],
     "booleen":   ["booleen", "booleens", "bool", "boolean"],
     "caractere": ["caractere", "charactere", "char", "car"],
-    "chaine":    ["chaine", "chaines", "texte", "string", "str"]
+    "chaine":    ["chaine", "chaines", "texte", "string", "str", "cc"]
   },
 
   "fonctions": {

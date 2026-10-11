@@ -244,6 +244,414 @@ fin`, ['abc', '41']);
   console.log(v.out.endsWith('42') && v.warns.length === 1 ? '✓ re-demande si saisie invalide' : `✗ saisie ${JSON.stringify(v)}`);
   if (!(v.out.endsWith('42') && v.warns.length === 1)) fails++;
 
+  // ================= fonctions et procédures (syntaxe du CM R1.01) =================
+  await check('fonction dans une expression (CM somme_carres)', `
+programme math
+fonction somme_carres(n : entier):entier
+/* fonction du cours */
+var i, terme : entier
+debut
+  terme<-0
+  pour i allant de 1 à n faire
+    terme <- terme + i*i
+  fpour
+  retourner(terme)
+fin
+var nbre, x : entier
+debut
+  entrer(nbre)
+  x <- somme_carres(nbre) * 2 + somme_carres(2)
+  sortir(x, " ", somme_carres(nbre))
+fin`, ['3'], '⟨3⟩\n33 14');
+
+  await check('fonction dans une condition (booléen)', `
+action v
+fonction est_pair(nombre : entier) : booleen
+debut
+  si ((nombre % 2) = 0) alors
+    retourner vrai
+  sinon
+    retourner faux
+  fsi
+fin
+var k : entier
+debut
+  pour k allant de 1 a 4 faire
+    si est_pair(k) et non est_pair(k + 1) alors sortir(k, " pair ") sinon sortir(k, " impair ") fsi
+  fpour
+fin`, [], '1 impair 2 pair 3 impair 4 pair ');
+
+  await check('procédure par valeur : l\'appelant ne change pas (TD3 ex4)', `
+action parametres
+procedure test( X: entier, Y : entier)
+debut
+  X <- Y + X
+  Y <- X * X
+  X <- Y - X
+  sortir(X, " ", Y, " / ")
+fin
+var A, B : entier
+debut
+  A <-2
+  B <-7
+  test(A,B)
+  sortir (A, " ", B)
+fin`, [], '72 81 / 2 7');
+
+  await check('procédure avec paramètres var (CM division_entiere)', `
+action TestDivision
+procedure division_entiere(a : entier, b : entier; var q : entier, var r : entier)
+debut
+  q <- a DIV b
+  r <- a MOD b
+fin
+var nb, d, quotient, reste : entier
+debut
+  entrer(nb, d)
+  division_entiere(nb, d, quotient, reste)
+  sortir(quotient, " ", reste)
+fin`, ['17', '5'], '⟨17⟩\n⟨5⟩\n3 2');
+
+  await check('échanger (var x, var y) + case de tableau en paramètre var', `
+action On_inverse_en_masse
+procedure intervertir(var x : entier, var y : entier)
+var
+  Temp : entier
+debut
+  Temp <- x
+  x <- y
+  y <- Temp
+fin
+var X1, Y1 : entier
+var T : tableau[1..3] de entier
+debut
+  X1 <- 5
+  Y1 <- 1
+  si X1 > Y1 alors
+    intervertir(X1, Y1)
+  fsi
+  T[1] <- 10   T[3] <- 30
+  intervertir(T[1], T[3])
+  sortir(X1, Y1, " ", T[1], " ", T[3])
+fin`, [], '15 30 10');
+
+  await check('tableau en paramètre : var = modifié, par valeur = copie', `
+action tab
+const N = 4
+type vecteur = tableau[1..N] de entier
+procedure decale_tableau(var tab : vecteur)
+var i, premier : entier
+debut
+  premier <- tab[1]
+  pour i allant de 1 a N - 1 faire
+    tab[i] <- tab[i + 1]
+  fpour
+  tab[N] <- premier
+fin
+fonction somme(t : vecteur) : entier
+var i, s : entier
+debut
+  s <- 0
+  pour i allant de 1 a N faire
+    s <- s + t[i]
+    t[i] <- 0
+  fpour
+  retourner s
+fin
+var V : vecteur
+var i : entier
+debut
+  pour i allant de 1 a N faire
+    V[i] <- i
+  fpour
+  decale_tableau(V)
+  sortir(somme(V), " ")
+  pour i allant de 1 a N faire
+    sortir(V[i])
+  fpour
+fin`, [], '10 2341');
+
+  await check('variables locales et globales (masquage, accès aux globales)', `
+action portee
+procedure p(n : entier)
+var i : entier
+debut
+  i <- 100
+  total <- total + n
+fin
+var i, total : entier
+debut
+  i <- 1
+  total <- 0
+  p(5)
+  p(2)
+  sortir(i, " ", total)
+fin`, [], '1 7');
+
+  await check('récursivité : factorielle et fibonacci', `
+action rec
+fonction fact(n : entier) : entier
+debut
+  si n <= 1 alors
+    retourner 1
+  fsi
+  retourner n * fact(n - 1)
+fin
+fonction fib(n : entier) : entier
+debut
+  si n < 2 alors retourner n fsi
+  retourner fib(n - 1) + fib(n - 2)
+fin
+debut
+  sortir(fact(5), " ", fib(10))
+fin`, [], '120 55');
+
+  await check('entrer dans une fonction appelée dans une expression (TD3 oui_non)', `
+action questions
+fonction oui_non() : cc
+var Rep : cc
+debut
+  Rep <- ""
+  tq Rep <> "Oui" et Rep <> "Non" faire
+    sortir("Tapez Oui ou Non ")
+    entrer(Rep)
+  ftq
+  retourner(Rep)
+fin
+var Rep1 : chaine
+debut
+  sortir("Etes-vous en première année ? ")
+  Rep1 := oui_non()
+  sortir("Réponse : ", Rep1)
+fin`, ['peut-être', 'Oui'], 'Etes-vous en première année ? Tapez Oui ou Non ⟨peut-être⟩\nTapez Oui ou Non ⟨Oui⟩\nRéponse : Oui');
+
+  await check('entrer dans une procédure + sous-programme après le programme + FIN PROCEDURE', `
+action saisie
+var a : entier
+debut
+  lire_positif(a)
+  sortir(a)
+fin
+PROCEDURE lire_positif(var n : entier)
+debut
+  repeter
+    entrer(n)
+  jusqu'a n > 0
+fin
+FIN PROCEDURE`, ['-3', '8'], '⟨-3⟩\n⟨8⟩\n8');
+
+  await check('paramètres groupés « a, b : entier » + robot (procédure sans paramètre)', `
+action Guider_Robot
+procedure tourner_droite()
+debut
+  sortir("D")
+fin
+procédure progresser (n: entier)
+var
+  i: entier
+debut
+  pour i allant de 1 à n faire
+    sortir(".")
+  fpour
+fin
+fonction plus(a, b : entier) : entier
+debut
+  retourner a + b
+fin
+debut
+  tourner_droite()
+  progresser(plus(1, 2))
+fin`, [], 'D...');
+
+  // --- erreurs attendues (avec le bon numéro de ligne) ---
+  await check('erreur : mauvais nombre de paramètres', `
+action e
+fonction carre(x : entier) : entier
+debut
+  retourner x * x
+fin
+var r : entier
+debut
+  r <- carre(5, 2)
+fin`, [], /^Ligne 9 : la fonction « carre » attend 1 paramètre, tu en donnes 2$/);
+
+  await check('erreur : mauvais type de paramètre', `
+action e
+procedure p(n : entier)
+debut
+  sortir(n)
+fin
+debut
+  p("abc")
+fin`, [], /^Ligne 8 : le paramètre n°1 de « p » \(« n »\) doit être un entier mais tu lui donnes le texte "abc"$/);
+
+  await check('erreur : valeur donnée à un paramètre var', `
+action e
+procedure echanger(var a : entier, var b : entier)
+var t : entier
+debut
+  t <- a
+  a <- b
+  b <- t
+fin
+var u : entier
+debut
+  u <- 1
+  echanger(u, 2 + 3)
+fin`, [], /^Ligne 13 : le paramètre n°2 de « echanger » \(« b »\) est passé par variable \(var\)/);
+
+  await check('erreur : fonction sans retourner', `
+action e
+fonction f(x : entier) : entier
+var y : entier
+debut
+  y <- x
+fin
+debut
+  sortir(f(1))
+fin`, [], /^Ligne 3 : la fonction « f » ne contient aucun « retourner »/);
+
+  await check('erreur : fonction terminée sans retourner (un chemin oublié)', `
+action e
+fonction signe(x : entier) : entier
+debut
+  si x > 0 alors
+    retourner 1
+  fsi
+fin
+debut
+  sortir(signe(-4))
+fin`, [], /^Ligne 8 : la fonction « signe » s'est terminée sans « retourner »/);
+
+  await check('erreur : récursion infinie', `
+action e
+fonction f(n : entier) : entier
+debut
+  retourner f(n + 1)
+fin
+debut
+  sortir(f(1))
+fin`, [], /^Ligne 5 : trop d'appels imbriqués/);
+
+  await check('erreur : retourner hors fonction', `
+action e
+var x : entier
+debut
+  x <- 1
+  retourner x
+fin`, [], /^Ligne 6 : « retourner » ne peut s'utiliser que dans une fonction/);
+
+  await check('erreur : procédure inexistante', `
+action e
+debut
+  sortir("a")
+  afficher_tout(3)
+fin`, [], /^Ligne 5 : la procédure « afficher_tout » n'existe pas/);
+
+  await check('erreur : fonction inexistante', `
+action e
+var x : entier
+debut
+  x <- doubler(3)
+fin`, [], /^Ligne 5 : la fonction « doubler » n'existe pas/);
+
+  await check('erreur : procédure utilisée dans un calcul', `
+action e
+procedure p(n : entier)
+debut
+  sortir(n)
+fin
+var x : entier
+debut
+  x <- p(3) + 1
+fin`, [], /^Ligne 9 : « p » est une procédure : elle ne retourne pas de valeur/);
+
+  await check('erreur : retourner une valeur dans une procédure', `
+action e
+procedure p(n : entier)
+debut
+  retourner n
+fin
+debut
+  p(1)
+fin`, [], /^Ligne 5 : « p » est une procédure : elle ne retourne pas de valeur/);
+
+  await check('erreur : type retourné incorrect', `
+action e
+fonction f(n : entier) : entier
+debut
+  retourner "abc"
+fin
+debut
+  sortir(f(1))
+fin`, [], /^Ligne 5 : la fonction « f » doit retourner un entier mais elle retourne le texte "abc"$/);
+
+  await check('erreur : deux sous-programmes du même nom', `
+action e
+procedure p()
+debut
+fin
+procedure P(x : entier)
+debut
+fin
+debut
+fin`, [], /^Ligne 6 : il y a déjà une fonction ou procédure nommée « P »/);
+
+  await check('erreur : type de retour oublié (TD3 points_gagnés)', `
+action e
+fonction points(pas : entier)
+var t : entier
+debut
+  retourner pas * 3
+fin
+debut
+fin`, [], /^Ligne 3 : il manque le type de la valeur retournée par la fonction « points »/);
+
+  await check('erreur : paramètres sans type', `
+action e
+fonction points(pas : entier, droite, gauche) : entier
+debut
+  retourner pas
+fin
+debut
+fin`, [], /^Ligne 3 : il manque le type du paramètre « gauche »/);
+
+  await check("erreur dans un sous-programme : la ligne est celle du sous-programme", `
+action e
+fonction moyenne(s : entier, n : entier) : reel
+debut
+  retourner s / n
+fin
+debut
+  sortir(moyenne(10, 2), " ")
+  sortir(moyenne(10, 0))
+fin`, [], /^Ligne 5 : division par zéro$/);
+
+  await check('erreur : sous-programme écrit après « debut »', `
+action e
+debut
+  sortir("a")
+  fonction f(x : entier) : entier
+fin`, [], /^Ligne 5 : les fonctions et procédures s'écrivent avant le « debut »/);
+
+  // un tableau modifié dans une procédure sans « var » : avertissement pédagogique
+  const bv = await exec(`
+action w
+type vecteur = tableau[1..2] de entier
+procedure raz(t : vecteur)
+debut
+  t[1] <- 0
+fin
+var V : vecteur
+debut
+  V[1] <- 5
+  raz(V)
+  sortir(V[1])
+fin`);
+  const bvOk = bv.out === '5' && bv.warns.some((w) => /passé par valeur/.test(w));
+  console.log(bvOk ? '✓ tableau par valeur modifié → avertissement' : `✗ tableau par valeur ${JSON.stringify(bv)}`);
+  if (!bvOk) fails++;
+
   // exemples du site
   const idx = JSON.parse(R('../lang/exemples/index.json'));
   for (const e of idx) {

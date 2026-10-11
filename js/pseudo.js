@@ -166,11 +166,11 @@ export function lex(src, lang) {
 // ---------------------------------------------------------------------
 //  Analyse syntaxique
 // ---------------------------------------------------------------------
-const CLOSERS = new Set(['sinon', 'fsi', 'ftq', 'fpour', 'jusqua', 'fcas', 'fin']);
+const CLOSERS = new Set(['sinon', 'fsi', 'ftq', 'fpour', 'jusqua', 'fcas', 'fin', 'ffonction']);
 const CMP = new Set(['=', '==', '!=', '<>', '<', '>', '<=', '>=']);
 
 class Parser {
-  constructor(toks, lang) { this.t = toks; this.p = 0; this.lang = lang; }
+  constructor(toks, lang) { this.t = toks; this.p = 0; this.lang = lang; this.sub = null; this.subs = []; }
   get cur() { return this.t[this.p]; }
   peek(o = 0) { return this.t[Math.min(this.p + o, this.t.length - 1)]; }
   next() { const t = this.t[this.p]; if (this.p < this.t.length - 1) this.p++; return t; }
@@ -207,15 +207,22 @@ class Parser {
   }
 
   // ----- programme -----
+  // [sous-programmes] [action NOM] {const|var|type|sous-programme|instruction} debut ... fin [sous-programmes]
+  isSubStart() { return this.isKw('fonction') || this.isKw('procedure'); }
   parseProgram() {
     let name = 'programme';
+    while (this.isSubStart()) this.subs.push(this.parseSubprogram());
     if (this.acceptKw('programme') && this.isIdent(this.cur)) name = this.next().raw;
     if (this.isOp('(')) { this.next(); this.acceptOp(')'); }
     const decls = [], pre = [];
     while (!this.isKw('debut')) {
       const t = this.cur;
-      if (t.type === 'eof') this.fail("il manque le mot « debut » pour commencer le programme", t);
-      if (this.isKw('const') || (this.isKw('var') && this.isKw('const', 1))) decls.push(...this.parseConst());
+      if (t.type === 'eof') {
+        if (this.subs.length) this.fail("il manque le programme principal (« debut ... fin ») qui appelle tes fonctions et procédures", t);
+        this.fail("il manque le mot « debut » pour commencer le programme", t);
+      }
+      if (this.isSubStart()) this.subs.push(this.parseSubprogram());
+      else if (this.isKw('const') || (this.isKw('var') && this.isKw('const', 1))) decls.push(...this.parseConst());
       else if (this.isKw('var')) { this.next(); decls.push(...this.parseVarList()); }
       else if (this.isKw('type')) decls.push(this.parseTypeDecl());
       else if (this.bareDecl()) decls.push(...this.parseVarList());
@@ -230,8 +237,75 @@ class Parser {
       this.fail(`${this.show(t)} ne correspond à aucun bloc ouvert (un « ${t.raw} » en trop, ou un bloc mal fermé avant ?)`, t);
     }
     this.next();
+    while (this.isSubStart()) this.subs.push(this.parseSubprogram());
     if (this.cur.type !== 'eof') this.fail(`il y a encore du texte après le « fin » du programme (${this.show(this.cur)})`);
-    return { name, decls, pre, body };
+    const ast = { name, decls, pre, body, subs: this.subs };
+    checkProgram(ast, this.lang);
+    return ast;
+  }
+
+  // fonction nom(a : entier, b : entier; var c : reel) : type   |   procedure nom(...)
+  // puis {const|var|type} debut ... fin [fin fonction]
+  parseSubprogram() {
+    const kwTok = this.next(), kind = kwTok.kw, line = kwTok.line;
+    const what = kind === 'fonction' ? 'la fonction' : 'la procédure';
+    const id = this.expectIdent(`le nom de ${what}`);
+    if (this.lang.funcs.has(id.norm))
+      this.fail(`« ${id.raw} » est déjà le nom d'une fonction intégrée : choisis un autre nom pour ${what}`, id);
+    const dup = this.subs.find((x) => x.norm === id.norm);
+    if (dup) this.fail(`il y a déjà une fonction ou procédure nommée « ${id.raw} » (ligne ${dup.line}) : chaque sous-programme doit avoir un nom différent`, id);
+    const params = [];
+    if (this.acceptOp('(')) {
+      if (!this.isOp(')')) {
+        do {
+          const mode = this.acceptKw('var') ? 'var' : 'valeur';
+          const names = [this.expectIdent("le nom d'un paramètre")];
+          while (this.isOp(',') && this.isIdent(this.peek(1))) { this.next(); names.push(this.next()); }
+          if (!this.isOp(':'))
+            this.fail(`il manque le type du paramètre « ${names[names.length - 1].raw} » (exemple : ${names[names.length - 1].raw} : entier)`);
+          this.next();
+          const type = this.parseType(true);
+          for (const n of names) {
+            if (params.some((q) => q.norm === n.norm)) this.fail(`le paramètre « ${n.raw} » apparaît deux fois`, n);
+            params.push({ name: n.raw, norm: n.norm, type, mode, line: n.line });
+          }
+        } while (this.acceptOp(',') || this.acceptOp(';'));
+      }
+      if (!this.isOp(')'))
+        this.fail(`dans la liste des paramètres de « ${id.raw} », j'attendais « , » ou « ) » mais j'ai trouvé ${this.show(this.cur)}`);
+      this.next();
+    }
+    let ret = null;
+    if (kind === 'fonction') {
+      if (!this.acceptOp(':'))
+        this.fail(`il manque le type de la valeur retournée par la fonction « ${id.raw} » (exemple : fonction ${id.raw}(x : entier) : entier)`, this.cur, id.line);
+      ret = this.parseType();
+    } else if (this.isOp(':') && this.cur.line === id.line) {
+      this.fail(`une procédure ne retourne pas de valeur : si « ${id.raw} » doit renvoyer un résultat, écris « fonction » au lieu de « procedure »`);
+    }
+    const sub = { kind, name: id.raw, norm: id.norm, params, ret, decls: [], body: null, line };
+    const decls = sub.decls;
+    while (!this.isKw('debut')) {
+      const t = this.cur;
+      if (this.isKw('const') || (this.isKw('var') && this.isKw('const', 1))) decls.push(...this.parseConst());
+      else if (this.isKw('var')) { this.next(); decls.push(...this.parseVarList()); }
+      else if (this.isKw('type')) decls.push(this.parseTypeDecl());
+      else if (this.bareDecl()) decls.push(...this.parseVarList());
+      else if (this.isSubStart())
+        this.fail(`il manque « debut ... fin » pour ${what} « ${id.raw} » avant de commencer un autre sous-programme`, t);
+      else this.fail(`j'attendais « debut » pour commencer ${what} « ${id.raw} » (déclare d'abord ses variables avec « var ») mais j'ai trouvé ${this.show(t)}`, t);
+      while (this.acceptOp(';'));
+    }
+    this.next();
+    const outer = this.sub;
+    this.sub = sub;
+    sub.body = this.parseBlock();
+    this.sub = outer;
+    sub.endLine = this.cur.line;
+    if (this.isKw('fin')) { this.next(); this.acceptKw('ffonction'); }
+    else if (this.isKw('ffonction')) this.next();
+    else this.expectClose('fin', 'fin', line, `${kind} ${id.raw}`);
+    return sub;
   }
 
   bareDecl() {
@@ -275,12 +349,15 @@ class Parser {
     return { k: 'type', name: id.raw, norm: id.norm, type: this.parseType(), line };
   }
 
-  parseType() {
+  parseType(param = false) {
     const t = this.cur;
     if (this.isKw('tableau')) {
       this.next();
       const dims = [];
-      if (!this.isOp('[')) this.fail("après « tableau » j'attendais les bornes entre crochets, par exemple tableau[1..10]");
+      if (!this.isOp('[')) {
+        if (param) this.fail("pour un paramètre tableau, déclare d'abord un type avant le programme (type vecteur = tableau[1..10] de entier) puis écris « tab : vecteur »");
+        this.fail("après « tableau » j'attendais les bornes entre crochets, par exemple tableau[1..10]");
+      }
       while (this.isOp('[')) {
         this.next();
         do {
@@ -328,12 +405,37 @@ class Parser {
         case 'sortir': return this.parseOut();
         case 'entrer': return this.parseIn();
         case 'retourligne': this.next(); return { k: 'nl', line };
+        case 'retourner': return this.parseReturn();
+        case 'fonction': case 'procedure':
+          this.fail(`les fonctions et procédures s'écrivent avant le « debut » du programme principal (pas au milieu des instructions)`);
         default: break;
       }
       if (this.isIdent(t)) return this.parseAssign();
       this.fail(`${this.show(t)} est inattendu ici (il ne correspond à aucun bloc ouvert)`);
     }
     this.fail(`je ne comprends pas ${this.show(t)} ici`);
+  }
+
+  parseReturn() {
+    const line = this.next().line;
+    const sub = this.sub;
+    if (!sub) this.fail("« retourner » ne peut s'utiliser que dans une fonction (ici on est dans le programme principal)", this.cur, line);
+    const hasExpr = this.startsExpr(this.cur) && this.cur.line === line;
+    if (sub.kind === 'procedure') {
+      if (hasExpr) this.fail(`« ${sub.name} » est une procédure : elle ne retourne pas de valeur (pour renvoyer un résultat, fais-en une fonction ou utilise un paramètre « var »)`, this.cur, line);
+      return { k: 'return', expr: null, line };
+    }
+    if (!hasExpr) this.fail(`il faut indiquer la valeur à retourner, par exemple « retourner(resultat) »`, this.cur, line);
+    return { k: 'return', expr: this.parseExpr(), line };
+  }
+
+  parseArgs() {
+    this.expectOp('(');
+    const args = [];
+    if (!this.isOp(')')) do { args.push(this.parseExpr()); } while (this.acceptOp(','));
+    if (!this.isOp(')')) this.fail(`dans l'appel, j'attendais « , » ou « ) » mais j'ai trouvé ${this.show(this.cur)} (virgule oubliée entre deux paramètres ?)`);
+    this.next();
+    return args;
   }
 
   parseLvalue() {
@@ -370,8 +472,8 @@ class Parser {
       this.next();
       return { k: 'assign', target: targets[0], expr: this.parseExpr(), line, eq: true };
     }
-    if (op.type === 'op' && op.value === '(')
-      this.fail(`« ${targets[0].name}(...) » : les procédures et fonctions personnalisées ne sont pas encore gérées par ce site`, targets[0]);
+    if (targets.length === 1 && targets[0].k === 'var' && op.type === 'op' && op.value === '(')
+      return { k: 'callstmt', name: targets[0].name, norm: targets[0].norm, args: this.parseArgs(), line };
     this.fail(`je ne comprends pas « ${targets[0].name} ${op.type === 'eof' ? '' : op.raw} » : ce n'est pas une instruction connue (pour ranger une valeur dans une variable, écris « ${targets[0].name} <- ... »)`, targets[0]);
   }
 
@@ -547,17 +649,77 @@ class Parser {
       if (!this.isIdent(t)) this.fail(`j'attendais une valeur ou une variable mais j'ai trouvé ${this.show(t)}`);
       if (this.isOp('(', 1)) {
         const fn = this.lang.funcs.get(t.norm);
-        if (!fn) this.fail(`la fonction « ${t.raw} » n'existe pas (fonctions disponibles : ${[...new Set(this.lang.funcs.values())].join(', ')})`);
-        this.next(); this.next();
-        const args = [];
-        if (!this.isOp(')')) do { args.push(this.parseExpr()); } while (this.acceptOp(','));
-        this.expectOp(')');
-        return { k: 'call', fn, args, line };
+        this.next();
+        if (fn) return { k: 'call', fn, args: this.parseArgs(), line };
+        return { k: 'ucall', name: t.raw, norm: t.norm, args: this.parseArgs(), line };   // fonction écrite par l'étudiant (vérifiée par checkProgram)
       }
       const lv = this.parseLvalue();
       return lv;
     }
     this.fail(`j'attendais une valeur, une variable ou une expression mais j'ai trouvé ${this.show(t)}`);
+  }
+}
+
+// ---------------------------------------------------------------------
+//  Vérifications après l'analyse (avant d'exécuter quoi que ce soit)
+// ---------------------------------------------------------------------
+// Parcourt l'arbre ; appelle f sur chaque nœud qui a un « k ». Marque n.u = true sur les nœuds qui
+// contiennent un appel de fonction de l'étudiant (« ucall ») : ces expressions-là sont évaluées par
+// Interpreter.evg, qui sait laisser la fonction faire « entrer ». Les autres gardent le chemin rapide ev.
+function walk(n, f) {
+  if (Array.isArray(n)) { let u = false; for (const x of n) if (walk(x, f)) u = true; return u; }
+  if (!n || typeof n !== 'object') return false;
+  let u = n.k === 'ucall';
+  for (const key in n) { const v = n[key]; if (v && typeof v === 'object' && walk(v, f)) u = true; }
+  if (n.k) { if (u) n.u = true; f(n); }
+  return u;
+}
+
+const nbParams = (n) => (n === 0 ? 'aucun paramètre' : `${n} paramètre${n > 1 ? 's' : ''}`);
+
+function checkProgram(ast, lang) {
+  const subs = new Map(ast.subs.map((x) => [x.norm, x]));
+  const errs = [];
+  for (const sub of ast.subs) {
+    if (sub.kind !== 'fonction') continue;
+    let has = false;
+    walk(sub.body, (n) => { if (n.k === 'return') has = true; });
+    if (!has) errs.push([sub.line, `la fonction « ${sub.name} » ne contient aucun « retourner » : une fonction doit renvoyer sa valeur avec retourner(...)`]);
+  }
+  walk(ast, (n) => {
+    switch (n.k) {
+      case 'assign': n.uu = !!n.expr.u; break;
+      case 'out': n.uu = n.args.some((a) => a.u); break;
+      case 'if': n.uu = n.clauses.some((c) => c.cond.u); break;
+      case 'while': case 'repeat': n.uu = !!n.cond.u; break;
+      case 'for': n.uu = !!(n.from.u || n.to.u || (n.step && n.step.u)); break;
+      case 'case': n.uu = !!(n.subject.u || n.branches.some((b) => b.vals.some((v) => v.u))); break;
+      default: break;
+    }
+    if (n.k !== 'ucall' && n.k !== 'callstmt') return;
+    const sub = subs.get(n.norm);
+    if (!sub) {
+      if (n.k === 'callstmt' && lang.funcs.has(n.norm))
+        errs.push([n.line, `« ${n.name} » est une fonction intégrée : utilise son résultat, par exemple x <- ${n.name}(...)`]);
+      else if (n.k === 'ucall')
+        errs.push([n.line, `la fonction « ${n.name} » n'existe pas : ce n'est ni une fonction intégrée (${[...new Set(lang.funcs.values())].join(', ')}), ni une fonction écrite dans ton programme`]);
+      else errs.push([n.line, `la procédure « ${n.name} » n'existe pas (faute de frappe ? ou elle n'est pas écrite dans ton programme)`]);
+      return;
+    }
+    const what = sub.kind === 'fonction' ? 'la fonction' : 'la procédure';
+    if (n.k === 'ucall' && sub.kind === 'procedure')
+      errs.push([n.line, `« ${sub.name} » est une procédure : elle ne retourne pas de valeur, on ne peut pas l'utiliser dans un calcul, une condition ou un sortir(...)`]);
+    if (n.args.length !== sub.params.length)
+      errs.push([n.line, `${what} « ${sub.name} » attend ${nbParams(sub.params.length)}, tu en donnes ${n.args.length}`]);
+    else sub.params.forEach((p, i) => {
+      const a = n.args[i];
+      if (p.mode === 'var' && a.k !== 'var' && a.k !== 'idx')
+        errs.push([n.line, `le paramètre n°${i + 1} de « ${sub.name} » (« ${p.name} ») est passé par variable (var) : il faut lui donner une variable, pas une valeur ou un calcul`]);
+    });
+  });
+  if (errs.length) {
+    errs.sort((a, b) => a[0] - b[0]);
+    throw new PseudoError(errs[0][1], errs[0][0]);
   }
 }
 
@@ -576,6 +738,17 @@ export function fmt(v) {
 const describe = (v) =>
   typeof v === 'number' ? `le nombre ${fmt(v)}` : typeof v === 'boolean' ? `le booléen ${fmt(v)}` : `le texte "${v}"`;
 const shown = (v) => (v === '' ? 'un texte vide' : fmt(v));
+const TYPE_NAMES = { entier: 'un entier', reel: 'un réel', booleen: 'un booléen', caractere: 'un caractère', chaine: 'un texte' };
+const typeName = (t) => TYPE_NAMES[t] || t;
+// la valeur x peut-elle aller dans une variable de type t ? (les décimaux vers entier sont tronqués par coerce)
+const fits = (x, t) =>
+  t === 'entier' || t === 'reel' ? typeof x === 'number'
+    : t === 'booleen' ? typeof x === 'boolean'
+      : t === 'caractere' || t === 'chaine' ? typeof x === 'string' : true;
+const sameBase = (a, b) => a === 'auto' || b === 'auto' || a === b ||
+  ((a === 'caractere' || a === 'chaine') && (b === 'caractere' || b === 'chaine'));
+// « retourner » : signal interne capturé par callUser (pas une Error : pas de pile à construire)
+class ReturnSignal { constructor(v, line) { this.v = v; this.line = line; } }
 const defaultOf = (t) => (t === 'booleen' ? false : t === 'caractere' || t === 'chaine' ? '' : 0);
 
 function parseInput(raw, type) {
@@ -607,9 +780,11 @@ export class Interpreter {
    */
   constructor(ast, lang, io, opts = {}) {
     this.ast = ast; this.lang = lang; this.io = io;
-    this.o = { sortirRetourLigne: false, strict: false, maxInstructions: 3_000_000, ...lang.options, ...opts };
-    this.vars = new Map(); this.types = new Map(); this.warned = new Set();
-    this.steps = 0; this.stopped = false;
+    this.o = { sortirRetourLigne: false, strict: false, maxInstructions: 3_000_000, maxAppels: 200, ...lang.options, ...opts };
+    // vars = portée globale (programme principal) ; local = portée du sous-programme en cours (null dans le principal)
+    this.vars = new Map(); this.local = null; this.types = new Map(); this.warned = new Set();
+    this.subs = new Map((ast.subs || []).map((x) => [x.norm, x]));
+    this.depth = 0; this.steps = 0; this.stopped = false;
   }
   stop() { this.stopped = true; }
   err(msg, line) { return new PseudoError(msg, line); }
@@ -641,7 +816,8 @@ export class Interpreter {
   // ----- déclarations -----
   declare(d) {
     if (d.k === 'type') { this.types.set(d.norm, d.type); return; }
-    if (this.vars.has(d.norm)) throw this.err(`« ${d.name} » est déjà déclarée`, d.line);
+    if ((this.local || this.vars).has(d.norm))
+      throw this.err(`« ${d.name} » est déjà déclarée${this.local ? " (c'est déjà un paramètre ou une variable locale)" : ''}`, d.line);
     if (d.k === 'const') {
       const type = d.type ? this.resolveType(d.type) : { kind: 'base', name: 'auto' };
       const v = this.newVar(d.name, d.norm, type);
@@ -674,13 +850,15 @@ export class Interpreter {
       v.kind = 'array'; v.dims = t.dims; v.type = t.elem.name;
       v.data = new Array(t.dims.reduce((a, d) => a * d.size, 1));
     } else { v.kind = 'scalar'; v.type = t.name; v.value = undefined; }
-    this.vars.set(norm, v);
+    (this.local || this.vars).set(norm, v);
     return v;
   }
 
   // ----- accès aux variables -----
+  // une variable locale (ou un paramètre) masque la variable globale de même nom
+  lookup(norm) { return (this.local && this.local.get(norm)) || this.vars.get(norm); }
   getVar(node) {
-    const v = this.vars.get(node.norm);
+    const v = this.lookup(node.norm);
     if (!v) throw this.err(`la variable « ${node.name} » n'existe pas (faute de frappe ? ou elle n'est pas déclarée)`, node.line);
     return v;
   }
@@ -695,12 +873,12 @@ export class Interpreter {
     }
     return v.value;
   }
-  offset(v, node) {
+  offset(v, node, iv) {
     if (node.idx.length !== v.dims.length)
       throw this.err(`« ${v.name} » a ${v.dims.length} dimension(s) mais tu donnes ${node.idx.length} indice(s)`, node.line);
     let off = 0;
     for (let k = 0; k < v.dims.length; k++) {
-      const x = this.ev(node.idx[k]), d = v.dims[k];
+      const x = iv ? iv[k] : this.ev(node.idx[k]), d = v.dims[k];
       if (typeof x !== 'number' || !Number.isInteger(x))
         throw this.err(`l'indice de « ${v.name} » doit être un entier (j'ai ${describe(x)})`, node.line);
       if (x < d.lo || x > d.hi)
@@ -738,19 +916,21 @@ export class Interpreter {
   }
   assign(target, val, line) {
     if (target.k === 'var') {
-      let v = this.vars.get(target.norm);
-      if (!v) {
-        if (this.o.strict) throw this.err(`la variable « ${target.name} » n'est pas déclarée`, line);
-        this.warn('undecl:' + target.norm, `la variable « ${target.name} » n'est pas déclarée (je la crée quand même — ajoute « var ${target.name} : entier » avant « debut »)`, line);
-        v = this.newVar(target.name, target.norm, { kind: 'base', name: 'auto' });
-      }
+      const v = this.lookup(target.norm) || this.autoVar(target, line);
       if (v.isConst) throw this.err(`« ${v.name} » est une constante : on ne peut pas la modifier`, line);
       if (v.kind === 'array') throw this.err(`« ${v.name} » est un tableau : écris ${v.name}[i] <- ... pour modifier une case`, line);
       v.value = this.coerce(val, v.type, v.name, line);
     } else {
       const v = this.arrVar(target);
+      if (v.byValue) this.warn('byval:' + v.norm, `« ${v.name} » est un paramètre tableau passé par valeur : tes modifications resteront dans la procédure (écris « var ${v.name} : ... » dans l'entête pour modifier le tableau de l'appelant)`, line);
       v.data[this.offset(v, target)] = this.coerce(val, v.type, `${v.name}[...]`, line);
     }
+  }
+
+  autoVar(target, line) {
+    if (this.o.strict) throw this.err(`la variable « ${target.name} » n'est pas déclarée`, line);
+    this.warn('undecl:' + target.norm, `la variable « ${target.name} » n'est pas déclarée (je la crée quand même — ajoute « var ${target.name} : entier » avant « debut »)`, line);
+    return this.newVar(target.name, target.norm, { kind: 'base', name: 'auto' });
   }
 
   // ----- expressions -----
@@ -758,21 +938,8 @@ export class Interpreter {
     switch (n.k) {
       case 'num': case 'str': case 'bool': return n.v;
       case 'var': return this.getScalar(n);
-      case 'idx': {
-        const v = this.arrVar(n);
-        let x = v.data[this.offset(v, n)];
-        if (x === undefined) {
-          if (this.o.strict) throw this.err(`une case de « ${v.name} » n'a pas encore de valeur : remplis le tableau avant de le lire`, n.line);
-          this.warn('init:' + v.norm, `une case de « ${v.name} » est lue avant d'avoir reçu une valeur (je prends ${shown(defaultOf(v.type))})`, n.line);
-          x = defaultOf(v.type);
-        }
-        return x;
-      }
-      case 'neg': {
-        const x = this.ev(n.e);
-        if (typeof x !== 'number') throw this.err(`le signe « - » ne s'applique qu'à un nombre (j'ai ${describe(x)})`, n.line);
-        return -x;
-      }
+      case 'idx': return this.readCell(this.arrVar(n), n);
+      case 'neg': return this.negate(this.ev(n.e), n.line);
       case 'not': return !this.bool(this.ev(n.e), n.line, 'non');
       case 'bin': {
         if (n.op === 'et' || n.op === 'ou') {
@@ -783,9 +950,54 @@ export class Interpreter {
         }
         return this.binop(n.op, this.ev(n.l), this.ev(n.r), n.line);
       }
-      case 'call': return this.call(n);
+      case 'call': return this.call(n, n.args.map((x) => this.ev(x)));
+      case 'ucall': return this.callSync(n);
       default: throw this.err('expression inconnue', n.line);
     }
+  }
+  // Version « générateur » de ev, utilisée seulement pour les expressions qui contiennent un appel
+  // de fonction de l'étudiant (n.u) : le corps de la fonction peut faire « entrer » (yield).
+  *evg(n) {
+    if (!n.u) return this.ev(n);
+    switch (n.k) {
+      case 'ucall': return yield* this.callUser(n);
+      case 'idx': {
+        const v = this.arrVar(n), iv = [];
+        for (const e of n.idx) iv.push(yield* this.evg(e));
+        return this.readCell(v, n, iv);
+      }
+      case 'neg': return this.negate(yield* this.evg(n.e), n.line);
+      case 'not': return !this.bool(yield* this.evg(n.e), n.line, 'non');
+      case 'bin': {
+        if (n.op === 'et' || n.op === 'ou') {
+          const a = this.bool(yield* this.evg(n.l), n.line, n.op);
+          if (n.op === 'et' && !a) return false;
+          if (n.op === 'ou' && a) return true;
+          return this.bool(yield* this.evg(n.r), n.line, n.op);
+        }
+        const a = yield* this.evg(n.l);
+        return this.binop(n.op, a, yield* this.evg(n.r), n.line);
+      }
+      case 'call': {
+        const a = [];
+        for (const x of n.args) a.push(yield* this.evg(x));
+        return this.call(n, a);
+      }
+      default: return this.ev(n);
+    }
+  }
+  readCell(v, n, iv) {
+    let x = v.data[this.offset(v, n, iv)];
+    if (x === undefined) {
+      if (this.o.strict) throw this.err(`une case de « ${v.name} » n'a pas encore de valeur : remplis le tableau avant de le lire`, n.line);
+      this.warn('init:' + v.norm, `une case de « ${v.name} » est lue avant d'avoir reçu une valeur (je prends ${shown(defaultOf(v.type))})`, n.line);
+      x = defaultOf(v.type);
+    }
+    return x;
+  }
+  negate(x, line) {
+    if (typeof x !== 'number') throw this.err(`le signe « - » ne s'applique qu'à un nombre (j'ai ${describe(x)})`, line);
+    return -x;
   }
   bool(x, line, op) {
     if (typeof x !== 'boolean') throw this.err(`« ${op} » attend des valeurs VRAI/FAUX mais j'ai ${describe(x)}`, line);
@@ -817,8 +1029,7 @@ export class Interpreter {
       }
     }
   }
-  call(n) {
-    const a = n.args.map((x) => this.ev(x));
+  call(n, a) {
     const num = (k) => {
       if (typeof a[k] !== 'number') throw this.err(`la fonction « ${n.fn} » attend un nombre (j'ai ${a[k] === undefined ? 'rien' : describe(a[k])})`, n.line);
       return a[k];
@@ -835,11 +1046,103 @@ export class Interpreter {
       default: throw this.err(`fonction « ${n.fn} » inconnue`, n.line);
     }
   }
-  cond(n, line) {
-    const x = this.ev(n);
+  cond(n, line) { return this.checkCond(this.ev(n), line); }
+  checkCond(x, line) {
     if (typeof x !== 'boolean')
       throw this.err(`la condition doit donner VRAI ou FAUX mais elle donne ${describe(x)} (il manque peut-être une comparaison, par exemple « x mod 5 = 0 »)`, line);
     return x;
+  }
+
+  // ----- sous-programmes (fonctions et procédures de l'étudiant) -----
+  // Appel : les paramètres sont évalués dans la portée de l'appelant, puis le corps s'exécute dans une
+  // nouvelle portée locale. Paramètre par valeur = copie ; paramètre « var » = lien vers la variable
+  // (ou la case de tableau) de l'appelant. Renvoie la valeur retournée (fonction) ou undefined (procédure).
+  *callUser(n) {
+    const sub = this.subs.get(n.norm);
+    const bound = [];
+    for (let i = 0; i < sub.params.length; i++) {
+      const p = sub.params[i], a = n.args[i], t = this.resolveType(p.type);
+      const where = `le paramètre n°${i + 1} de « ${sub.name} » (« ${p.name} »)`;
+      if (p.mode === 'var') bound.push(yield* this.bindRef(p, t, a, where, n.line));
+      else if (t.kind === 'array') bound.push(this.bindArrayCopy(p, t, a, where, n.line, sub));
+      else {
+        const x = a.u ? yield* this.evg(a) : this.ev(a);
+        if (!fits(x, t.name)) throw this.err(`${where} doit être ${typeName(t.name)} mais tu lui donnes ${describe(x)}`, n.line);
+        bound.push({ name: p.name, norm: p.norm, kind: 'scalar', type: t.name, value: this.coerce(x, t.name, p.name, n.line) });
+      }
+    }
+    this.callLine = n.line;
+    if (this.depth >= this.o.maxAppels)
+      throw this.err(`trop d'appels imbriqués (plus de ${this.o.maxAppels}) : récursion infinie ? Vérifie que « ${sub.name} » finit par s'arrêter sans se rappeler.`, n.line);
+    const saved = this.local;
+    this.local = new Map(bound.map((v) => [v.norm, v]));
+    this.depth++;
+    try {
+      for (const d of sub.decls) this.declare(d);
+      try {
+        yield* this.execBlock(sub.body);
+      } catch (e) {
+        if (!(e instanceof ReturnSignal)) throw e;
+        if (sub.kind === 'procedure') return undefined;
+        const rt = this.resolveType(sub.ret);
+        if (rt.kind === 'array')
+          throw this.err(`une fonction ne peut pas retourner un tableau : utilise plutôt une procédure avec un paramètre « var »`, e.line);
+        if (!fits(e.v, rt.name))
+          throw this.err(`la fonction « ${sub.name} » doit retourner ${typeName(rt.name)} mais elle retourne ${describe(e.v)}`, e.line);
+        return this.coerce(e.v, rt.name, sub.name, e.line);
+      }
+      if (sub.kind === 'fonction')
+        throw this.err(`la fonction « ${sub.name} » s'est terminée sans « retourner » de valeur (il faut un retourner(...) sur tous les chemins)`, sub.endLine);
+      return undefined;
+    } finally {
+      this.local = saved;
+      this.depth--;
+    }
+  }
+  // Appel de fonction depuis un endroit où l'on ne peut pas attendre une saisie
+  // (indice de tableau à gauche de <-, borne de tableau, constante...) : exécution synchrone.
+  callSync(n) {
+    const g = this.callUser(n);
+    try {
+      for (let r = g.next(); ; r = g.next()) {
+        if (r.done) return r.value;
+        if (r.value.t === 'read')
+          throw this.err(`la fonction « ${n.name} » utilise « entrer » : à cet endroit ce n'est pas possible, range d'abord son résultat dans une variable`, n.line);
+      }
+    } finally { g.return(); }
+  }
+  *bindRef(p, t, a, where, line) {
+    if (a.k === 'idx') {
+      const arr = this.arrVar(a), iv = [];
+      for (const e of a.idx) iv.push(e.u ? yield* this.evg(e) : this.ev(e));
+      const off = this.offset(arr, a, iv), data = arr.data;
+      if (t.kind === 'array') throw this.err(`${where} est un tableau : donne le nom du tableau (« ${arr.name} »), pas une case`, line);
+      if (!sameBase(arr.type, t.name)) throw this.err(`${where} doit être ${typeName(t.name)} mais les cases de « ${arr.name} » sont de type ${arr.type}`, line);
+      return { name: p.name, norm: p.norm, kind: 'scalar', type: t.name, get value() { return data[off]; }, set value(x) { data[off] = x; } };
+    }
+    const v = this.lookup(a.norm) || this.autoVar(a, line);
+    if (v.isConst) throw this.err(`${where} est passé par variable (var) : on ne peut pas lui donner la constante « ${v.name} »`, line);
+    if (t.kind === 'array') {
+      if (v.kind !== 'array') throw this.err(`${where} est un tableau mais « ${v.name} » n'est pas un tableau`, line);
+      this.sameShape(v, t, where, line);
+      return { name: p.name, norm: p.norm, kind: 'array', dims: v.dims, type: v.type, data: v.data };
+    }
+    if (v.kind === 'array') throw this.err(`« ${v.name} » est un tableau mais ${where} ne l'est pas (donne une case, par exemple ${v.name}[1])`, line);
+    if (!sameBase(v.type, t.name)) throw this.err(`${where} doit être ${typeName(t.name)} mais « ${v.name} » est déclarée de type ${v.type}`, line);
+    return { name: p.name, norm: p.norm, kind: 'scalar', type: t.name, get value() { return v.value; }, set value(x) { v.value = x; } };
+  }
+  bindArrayCopy(p, t, a, where, line, sub) {
+    const v = a.k === 'var' ? this.getVar(a) : null;
+    if (!v || v.kind !== 'array') throw this.err(`${where} est un tableau : donne le nom d'un tableau`, line);
+    this.sameShape(v, t, where, line);
+    return { name: p.name, norm: p.norm, kind: 'array', dims: v.dims, type: v.type, data: v.data.slice(), byValue: sub.kind === 'procedure' };
+  }
+  sameShape(v, t, where, line) {
+    const size = (dims) => dims.map((d) => `${d.lo}..${d.hi}`).join('][');
+    if (v.dims.length !== t.dims.length || v.dims.some((d, k) => d.lo !== t.dims[k].lo || d.hi !== t.dims[k].hi))
+      throw this.err(`${where} attend un tableau [${size(t.dims)}] mais « ${v.name} » est un tableau [${size(v.dims)}]`, line);
+    if (!sameBase(v.type, t.elem.name))
+      throw this.err(`${where} attend un tableau de ${t.elem.name} mais « ${v.name} » contient des ${v.type}`, line);
   }
 
   // ----- instructions -----
@@ -849,8 +1152,12 @@ export class Interpreter {
     return (this.steps & 4095) === 0;
   }
   *execBlock(list) { for (const s of list) yield* this.exec(s); }
+  // Chemin rapide. Les instructions marquées « uu » (une de leurs expressions appelle une fonction de
+  // l'étudiant) et les instructions des sous-programmes passent par execU : garder exec petit compte
+  // pour la vitesse (un générateur avec beaucoup de yield* est nettement plus lent dans V8).
   *exec(s) {
     if (this.step(s.line)) { if (this.stopped) throw new StopSignal(); yield { t: 'tick' }; }
+    if (s.uu) return yield* this.execU(s);
     switch (s.k) {
       case 'assign': {
         const v = this.ev(s.expr);
@@ -869,7 +1176,7 @@ export class Interpreter {
       case 'in':
         for (const tg of s.targets) {
           let type = 'auto';
-          if (tg.k === 'var') { const v = this.vars.get(tg.norm); if (v && v.kind === 'scalar') type = v.type; }
+          if (tg.k === 'var') { const v = this.lookup(tg.norm); if (v && v.kind === 'scalar') type = v.type; }
           else type = this.arrVar(tg).type;
           let val;
           for (;;) {
@@ -901,14 +1208,7 @@ export class Interpreter {
         break;
       case 'for': {
         const from = this.ev(s.from), to = this.ev(s.to), st = s.step ? this.ev(s.step) : 1;
-        for (const x of [from, to, st])
-          if (typeof x !== 'number') throw this.err(`les valeurs d'une boucle pour doivent être des nombres (j'ai ${describe(x)})`, s.line);
-        if (st === 0) throw this.err('le pas de la boucle pour ne peut pas être 0', s.line);
-        for (let i = from; st > 0 ? i <= to : i >= to; i += st) {
-          this.assign(s.v, i, s.line);
-          yield* this.execBlock(s.body);
-          if (this.step(s.line)) { if (this.stopped) throw new StopSignal(); yield { t: 'tick' }; }
-        }
+        yield* this.loopFor(s, from, to, st);
         break;
       }
       case 'case': {
@@ -923,6 +1223,79 @@ export class Interpreter {
         if (s.def) yield* this.execBlock(s.def);
         break;
       }
+      default: return yield* this.execU(s);
+    }
+  }
+  *loopFor(s, from, to, st) {
+    for (const x of [from, to, st])
+      if (typeof x !== 'number') throw this.err(`les valeurs d'une boucle pour doivent être des nombres (j'ai ${describe(x)})`, s.line);
+    if (st === 0) throw this.err('le pas de la boucle pour ne peut pas être 0', s.line);
+    for (let i = from; st > 0 ? i <= to : i >= to; i += st) {
+      this.assign(s.v, i, s.line);
+      yield* this.execBlock(s.body);
+      if (this.step(s.line)) { if (this.stopped) throw new StopSignal(); yield { t: 'tick' }; }
+    }
+  }
+  // Même chose que exec, mais les expressions sont évaluées par evg : une fonction de l'étudiant
+  // appelée dans l'expression peut faire « entrer » et rendre la main au navigateur.
+  *execU(s) {
+    switch (s.k) {
+      case 'assign': {
+        const v = yield* this.evg(s.expr);
+        if (s.eq) this.warn('eq:' + s.line, 'pour ranger une valeur dans une variable on écrit « <- » (le « = » sert à comparer)', s.line);
+        this.assign(s.target, v, s.line);
+        break;
+      }
+      case 'out': {
+        let txt = '';
+        for (const a of s.args) txt += fmt(yield* this.evg(a));
+        if (this.o.sortirRetourLigne) txt += '\n';
+        this.io.write(txt);
+        break;
+      }
+      case 'if': {
+        for (const c of s.clauses) if (this.checkCond(yield* this.evg(c.cond), c.line)) { yield* this.execBlock(c.body); return; }
+        if (s.els) yield* this.execBlock(s.els);
+        break;
+      }
+      case 'while':
+        while (this.checkCond(yield* this.evg(s.cond), s.line)) {
+          yield* this.execBlock(s.body);
+          if (this.step(s.line)) { if (this.stopped) throw new StopSignal(); yield { t: 'tick' }; }
+        }
+        break;
+      case 'repeat':
+        do {
+          yield* this.execBlock(s.body);
+          if (this.step(s.line)) { if (this.stopped) throw new StopSignal(); yield { t: 'tick' }; }
+        } while (!this.checkCond(yield* this.evg(s.cond), s.line));
+        break;
+      case 'for': {
+        const from = yield* this.evg(s.from), to = yield* this.evg(s.to), st = s.step ? yield* this.evg(s.step) : 1;
+        yield* this.loopFor(s, from, to, st);
+        break;
+      }
+      case 'case': {
+        const x = yield* this.evg(s.subject);
+        for (const b of s.branches) {
+          for (const ve of b.vals) {
+            const y = yield* this.evg(ve);
+            if (typeof y !== typeof x) throw this.err(`on ne peut pas comparer ${describe(x)} avec la valeur ${describe(y)} d'un cas`, s.line);
+            if (x === y) { yield* this.execBlock(b.body); return; }
+          }
+        }
+        if (s.def) yield* this.execBlock(s.def);
+        break;
+      }
+      case 'callstmt': {
+        const sub = this.subs.get(s.norm);
+        if (sub.kind === 'fonction')
+          this.warn('unused:' + s.line, `le résultat de la fonction « ${sub.name} » n'est pas utilisé (range-le dans une variable : x <- ${sub.name}(...))`, s.line);
+        yield* this.callUser(s);
+        break;
+      }
+      case 'return':
+        throw new ReturnSignal(s.expr ? yield* this.evg(s.expr) : undefined, s.line);
       default: throw this.err('instruction inconnue', s.line);
     }
   }
@@ -947,6 +1320,9 @@ export async function runSource(src, lang, io, opts = {}) {
   } catch (e) {
     if (e instanceof StopSignal) return { ok: false, stopped: true, interp };
     if (e instanceof PseudoError) return { ok: false, error: e, interp };
+    // pile JavaScript épuisée (Chrome/Node : RangeError, Firefox : InternalError « too much recursion »)
+    if ((e instanceof RangeError && /stack/i.test(e.message)) || (e && e.name === 'InternalError'))
+      return { ok: false, error: new PseudoError("trop d'appels imbriqués : récursion trop profonde ou infinie ?", interp.callLine), interp };
     throw e;
   }
 }

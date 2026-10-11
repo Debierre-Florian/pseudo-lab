@@ -1,0 +1,21 @@
+// Fonction (CM « Procédures et fonctions ») : une fonction retourne UN résultat
+programme math
+
+fonction somme_carres(n : entier) : entier
+/* cette fonction calcule 1² + 2² + ... + n² */
+var i, terme : entier          // variables locales
+debut
+	terme <- 0
+	pour i allant de 1 a n faire
+		terme <- terme + i * i
+	fpour
+	retourner(terme)
+fin
+
+var
+	nbre : entier
+debut
+	sortir("Entrez un entier positif : ")
+	entrer(nbre)
+	sortir("Le terme de la suite au rang ", nbre, " est : ", somme_carres(nbre))
+fin
