@@ -350,7 +350,10 @@ juste avant chaque exécution. Tests : section « permissions » de `tests/run.m
 
 Ensuite : page d'**accueil** (`view-home`) pour les visiteurs non connectés (seule page publique) ; accès aux vues
 décidé par `viewAllowed()` dans app.js : étudiant → l'éditeur seulement après avoir ouvert un projet ou un programme
-(`state.doc.opened`), Aide et Admin réservées à l'admin ; liste « Charger… » réservée à l'admin ; `applyEditorRules()` verrouille titre/TD (travail de
+(`state.doc.opened`), ou directement s'il a droit aux programmes libres (bouton « + Nouveau programme » dans Mes programmes) ;
+Aide et Admin réservées à l'admin. Navigation : `showView(route, push)` ajoute une entrée d'historique (`pushState`) pour que
+le bouton Retour du navigateur revienne à la page précédente ; routes `#vue` et `#projects/<id>` (travail rendu). Les
+permissions sont relues (`refreshPerms`) à chaque changement de page pour un étudiant ; liste « Charger… » réservée à l'admin ; `applyEditorRules()` verrouille titre/TD (travail de
 projet, ou sans programmes libres), cache « Nouveau » et désactive « Enregistrer » hors projet. Le trigger `programs_guard`
 impose le titre/TD du projet au travail d'un étudiant. L'admin garde toutes les fonctionnalités.
 

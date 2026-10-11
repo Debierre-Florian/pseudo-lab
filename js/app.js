@@ -302,6 +302,7 @@ async function refreshPerms() {
   updateRunButton();
   applyEditorRules();
   renderInfoBar();
+  updateNav();
 }
 async function projectById(id) {
   const known = state.projects.find((x) => x.id === id);
@@ -366,8 +367,13 @@ async function renderMine() {
     const [rows, projects] = await Promise.all([state.backend.listMine(), state.backend.listProjects().catch(() => [])]);
     state.projects = projects;
     const projName = new Map(projects.map((x) => [x.id, x.title]));
-    if (!rows.length) return body.replaceChildren(h('div', { class: 'empty' }, 'Aucun programme enregistré pour l\'instant. Écris du code dans l\'éditeur (ou ouvre un projet) puis clique sur « Enregistrer ».'));
-    body.replaceChildren(h('div', { class: 'table-wrap' }, h('table', { class: 'list' },
+    const tools = canFree()
+      ? h('div', { class: 'admin-tools' }, h('button', { class: 'btn primary', onclick: () => newDoc() }, '+ Nouveau programme'))
+      : h('p', { class: 'muted' }, 'Ton prof a limité le travail aux projets : pour commencer, choisis un projet dans l\'onglet « Projets ».');
+    if (!rows.length) return body.replaceChildren(tools, h('div', { class: 'empty' }, canFree()
+      ? 'Aucun programme enregistré pour l\'instant. Crée un nouveau programme ou ouvre un projet.'
+      : 'Aucun programme enregistré pour l\'instant.'));
+    body.replaceChildren(tools, h('div', { class: 'table-wrap' }, h('table', { class: 'list' },
       h('thead', {}, h('tr', {}, ['Titre', 'Projet', 'TD', 'Modifié', 'Statut', ''].map((c) => h('th', {}, c)))),
       h('tbody', {}, rows.map((p) => h('tr', {},
         h('td', {}, h('button', { class: 'link', onclick: () => openProgram(p) }, p.title)),
@@ -530,7 +536,7 @@ async function renderProjects() {
       h('div', { class: 'row' },
         h('button', { class: 'btn small primary', onclick: () => openMyProjectWork(pr) }, started.has(pr.id) ? 'Ouvrir mon travail' : 'Commencer'),
         pr.share_work && state.me.can_view_others !== false
-          ? h('button', { class: 'btn small', onclick: () => renderProjectWork(pr) }, 'Voir le travail des autres') : null)))));
+          ? h('button', { class: 'btn small', onclick: () => showView('projects/' + pr.id) }, 'Voir le travail des autres') : null)))));
   } catch (e) { body.replaceChildren(empty(e.message)); }
 }
 
@@ -556,15 +562,22 @@ function drawAdminProjects(body, list) {
       toggle(pr, 'run_enabled', 'Exécution autorisée'),
       toggle(pr, 'share_work', 'Les étudiants voient le travail des autres')),
     h('div', { class: 'row' },
-      h('button', { class: 'btn small primary', onclick: () => renderProjectWork(pr) }, 'Travail des étudiants'),
+      h('button', { class: 'btn small primary', onclick: () => showView('projects/' + pr.id) }, 'Travail des étudiants'),
       h('button', { class: 'btn small', onclick: () => openProjectDialog(pr) }, 'Modifier'),
       h('button', { class: 'btn small danger', onclick: () => removeProject(pr) }, 'Supprimer'))))));
 }
 
+async function openProjectWorkById(id) {
+  const body = $('#projects-body');
+  body.textContent = 'Chargement…';
+  const pr = await projectById(id);
+  if (!pr) return showView('projects', false);
+  renderProjectWork(pr);
+}
 async function renderProjectWork(pr) {
   const body = $('#projects-body');
   body.textContent = 'Chargement…';
-  const back = h('p', { class: 'back' }, h('button', { class: 'link', onclick: renderProjects }, '← Tous les projets'));
+  const back = h('p', { class: 'back' }, h('button', { class: 'link', onclick: () => showView('projects') }, '← Tous les projets'));
   const title = h('h2', { class: 'group-title' }, `Travail rendu — ${pr.title}`);
   try {
     const rows = await state.backend.listProjectWork(pr.id);
@@ -650,8 +663,8 @@ async function submitProject(e) {
    =================================================================== */
 const VIEWS = ['home', 'editor', 'projects', 'mine', 'shared', 'admin', 'help'];
 // Sans compte : accueil seulement. Étudiant : l'éditeur s'ouvre après avoir choisi un projet (ou un de ses
-// programmes) ; Aide et Admin sont réservées à l'admin.
-const canOpenEditor = () => isAdmin() || (!!state.me && state.doc.opened);
+// programmes), ou tout de suite s'il a le droit aux programmes libres ; Aide et Admin sont réservées à l'admin.
+const canOpenEditor = () => isAdmin() || (!!state.me && (state.doc.opened || canFree()));
 function viewAllowed(v) {
   if (!state.me) return v === 'home';
   if (v === 'home') return false;
@@ -662,15 +675,23 @@ function viewAllowed(v) {
 function updateNav() {
   for (const b of $$('#nav button')) b.hidden = !viewAllowed(b.dataset.view);
 }
-function showView(name) {
-  if (!viewAllowed(name)) name = !state.me ? 'home' : isAdmin() && !VIEWS.includes(name) ? 'editor' : 'projects';
+// route = « vue » ou « projects/<id> » (liste du travail rendu dans un projet).
+// push = true : nouvelle entrée dans l'historique, pour que le bouton Retour du navigateur revienne à la page
+// précédente du site. push = false quand on arrive par Retour/Avancer (l'adresse est déjà la bonne).
+function showView(route, push = true) {
+  route = String(route || '');
+  let [name, arg = ''] = route.split('/');
+  if (!viewAllowed(name)) { name = !state.me ? 'home' : isAdmin() && !VIEWS.includes(name) ? 'editor' : 'projects'; arg = ''; }
+  if (name !== 'projects') arg = '';
+  const target = arg ? `${name}/${arg}` : name;
   state.view = name;
   for (const v of VIEWS) $('#view-' + v).hidden = v !== name;
   for (const b of $$('#nav button')) {
     if (b.dataset.view === name) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
   }
-  if (location.hash.slice(1) !== name) history.replaceState(null, '', '#' + name);
-  if (name === 'projects') renderProjects();
+  if (location.hash.slice(1) !== target) history[push && target === route ? 'pushState' : 'replaceState'](null, '', '#' + target);
+  if (state.me && !isAdmin()) refreshPerms();   // l'admin a pu changer les permissions depuis le chargement
+  if (name === 'projects') { if (arg) openProjectWorkById(arg); else renderProjects(); }
   if (name === 'mine') renderMine();
   if (name === 'shared') renderShared();
   if (name === 'admin') renderAdmin();
@@ -803,12 +824,12 @@ async function init() {
   $('#project-cancel').addEventListener('click', () => $('#project-dialog').close());
   $('#p-take-editor').addEventListener('click', () => { $('#p-code').value = state.cm.getValue(); });
   $('#p-take-modele').addEventListener('click', () => { $('#p-code').value = state.modele; });
-  window.addEventListener('hashchange', () => showView(location.hash.slice(1)));
+  window.addEventListener('hashchange', () => showView(location.hash.slice(1), false));
   window.addEventListener('beforeunload', (e) => { if (state.dirty) { e.preventDefault(); e.returnValue = ''; } });
 
   $('#home-login').addEventListener('click', () => openAuth());
   $('#home-signup').addEventListener('click', () => openAuth('', 'signup'));
-  showView(location.hash.slice(1) || (state.me ? 'projects' : 'home'));
+  showView(location.hash.slice(1) || (state.me ? 'projects' : 'home'), false);
   window.__pl = state;   // pratique pour déboguer dans la console du navigateur
 }
 
