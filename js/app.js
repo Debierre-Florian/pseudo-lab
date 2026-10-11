@@ -166,6 +166,7 @@ function setDoc({ id = null, owner = null, author = null, isCopy = false, title 
   clearErrLine(); setDirty(false);
   renderInfoBar();
   updateRunButton();
+  applyEditorRules();
 }
 function renderInfoBar() {
   const { author, owner, isCopy, project } = state.doc;
@@ -182,12 +183,15 @@ function renderInfoBar() {
       : `Programme de ${author} — tu es admin : « Enregistrer » modifie l'original.`;
   } else if (author && !state.me) who = `Programme de ${author} — connecte-toi pour en enregistrer une copie.`;
   if (who) parts.push(parts.length ? '\n' : '', who);
+  if (!project && state.me && !canFree())
+    parts.push(parts.length ? '\n' : '', 'Ton prof a limité le travail aux projets : ouvre un projet dans l\'onglet « Projets » pour pouvoir enregistrer.');
   bar.replaceChildren(...parts);
   bar.hidden = !parts.length;
 }
 const confirmDiscard = () => !state.dirty || confirm('Tu as des modifications non enregistrées. Les abandonner ?');
 
 async function newDoc(code = state.modele, title = '', td = '') {
+  if (!canFree()) return toast('Ton prof a limité le travail aux projets : ouvre un projet dans l\'onglet « Projets ».', 'err');
   if (!confirmDiscard()) return;
   setDoc({ title, td, code });
   con.clear();
@@ -261,6 +265,21 @@ function runBlock() {
   return null;
 }
 const canFree = () => isAdmin() || (!!state.me && state.settings.free_programs && state.me.can_free !== false);
+// Étudiant : le titre et le TD d'un travail de projet sont ceux du projet (non modifiables) ; sans
+// « programmes libres », pas de « Nouveau » ni d'enregistrement hors projet. L'admin a tout.
+function applyEditorRules() {
+  const student = !isAdmin();
+  const inProject = !!state.doc.project && !state.doc.isCopy;
+  const free = canFree();
+  const locked = student && (inProject || !free);
+  for (const id of ['#title', '#td']) {
+    $(id).readOnly = locked;
+    $(id).title = locked ? (inProject ? 'Le titre est celui du projet' : 'Ton prof a limité le travail aux projets') : '';
+  }
+  $('#btn-new').hidden = student && !free;
+  $('#btn-save').disabled = student && !inProject && !free;
+  $('#btn-save').title = $('#btn-save').disabled ? 'Ouvre un projet (onglet Projets) pour enregistrer ton travail' : 'Ctrl + S';
+}
 function updateRunButton() {
   const why = runBlock();
   const btn = $('#btn-run');
@@ -279,6 +298,8 @@ async function refreshPerms() {
   if (state.me && p) tasks.push(state.backend.getProject(p.id).then((x) => { if (x && state.doc.project === p) state.doc.project = x; }));
   await Promise.allSettled(tasks);
   updateRunButton();
+  applyEditorRules();
+  renderInfoBar();
 }
 async function projectById(id) {
   const known = state.projects.find((x) => x.id === id);
@@ -303,7 +324,7 @@ async function refreshTemplates() {
 }
 async function onLoaderChange(e) {
   const v = e.target.value; e.target.value = '';
-  if (!v || !confirmDiscard()) return;
+  if (!isAdmin() || !v || !confirmDiscard()) return;
   if (v === 'base') return newDoc(state.modele, '', '');
   if (v.startsWith('ex:')) {
     const ex = state.examples.find((x) => x.id === v.slice(3));
@@ -625,10 +646,13 @@ async function submitProject(e) {
 /* ===================================================================
    Navigation
    =================================================================== */
-const VIEWS = ['editor', 'projects', 'mine', 'shared', 'admin', 'help'];
+const VIEWS = ['home', 'editor', 'projects', 'mine', 'shared', 'admin', 'help'];
+const PUBLIC_VIEWS = ['home', 'help'];   // seules pages visibles sans être connecté
 function showView(name) {
-  if (!VIEWS.includes(name)) name = 'editor';
-  if (name === 'admin' && !(state.me && state.me.role === 'admin')) name = 'editor';
+  if (!VIEWS.includes(name)) name = state.me ? 'editor' : 'home';
+  if (!state.me && !PUBLIC_VIEWS.includes(name)) name = 'home';
+  if (state.me && name === 'home') name = 'projects';
+  if (name === 'admin' && !isAdmin()) name = 'editor';
   state.view = name;
   for (const v of VIEWS) $('#view-' + v).hidden = v !== name;
   for (const b of $$('#nav button')) {
@@ -654,16 +678,23 @@ function renderAuthBox() {
   } else {
     box.replaceChildren(h('button', { class: 'btn small primary', onclick: () => openAuth() }, 'Connexion'));
   }
-  $('[data-view=admin]').hidden = !(state.me && state.me.role === 'admin');
+  for (const b of $$('#nav button')) {
+    const v = b.dataset.view;
+    b.hidden = v === 'admin' ? !isAdmin() : !state.me && !PUBLIC_VIEWS.includes(v);
+  }
+  $('#loader').hidden = !isAdmin();   // « Charger un modèle ou un exemple » : réservé à l'admin
   renderInfoBar();
   updateRunButton();
+  applyEditorRules();
 }
 async function logout() {
   if (!confirmDiscard()) return;
   await state.backend.signOut();
-  state.me = null; renderAuthBox();
-  setDirty(false);
-  if (['projects', 'mine', 'shared', 'admin'].includes(state.view)) showView(state.view === 'admin' ? 'editor' : state.view);
+  state.me = null;
+  setDoc({ code: state.modele });
+  renderAuthBox();
+  con.clear();
+  showView('home');
   toast('Déconnecté');
 }
 
@@ -681,8 +712,8 @@ function setAuthMode(mode) {
 function authMsg(text, ok = false) {
   const m = $('#auth-msg'); m.textContent = text; m.hidden = !text; m.classList.toggle('ok', ok);
 }
-function openAuth(why = '') {
-  setAuthMode('login');
+function openAuth(why = '', mode = 'login') {
+  setAuthMode(mode);
   const w = $('#auth-why'); w.textContent = why; w.hidden = !why;
   $('#auth-dialog').showModal();
   $('#a-email').focus();
@@ -700,7 +731,7 @@ async function submitAuth(e) {
     renderAuthBox(); refreshTemplates();
     toast(`Bienvenue ${state.me.pseudo} !`);
     refreshPerms();
-    if (['projects', 'mine', 'shared', 'admin'].includes(state.view)) showView(state.view);
+    showView(PUBLIC_VIEWS.includes(state.view) && state.view !== 'help' ? 'projects' : state.view);
   } catch (err) { authMsg(err.message, !!err.info); }
   finally { btn.disabled = false; }
 }
@@ -767,7 +798,9 @@ async function init() {
   window.addEventListener('hashchange', () => showView(location.hash.slice(1)));
   window.addEventListener('beforeunload', (e) => { if (state.dirty) { e.preventDefault(); e.returnValue = ''; } });
 
-  showView(location.hash.slice(1) || 'editor');
+  $('#home-login').addEventListener('click', () => openAuth());
+  $('#home-signup').addEventListener('click', () => openAuth('', 'signup'));
+  showView(location.hash.slice(1) || (state.me ? 'projects' : 'home'));
   window.__pl = state;   // pratique pour déboguer dans la console du navigateur
 }
 

@@ -26,6 +26,11 @@ export function createLocalBackend() {
     const p = pid && projs().find((x) => x.id === pid);
     return !!p && p.share_work && u.can_view_others;
   };
+  // comme le trigger programs_guard : un étudiant garde le titre et le TD du projet
+  const projectNames = (u, pid, title, td) => {
+    const pr = u.role !== 'admin' && pid && projs().find((x) => x.id === pid);
+    return pr ? { title: pr.title, td: pr.td || '' } : { title, td };
+  };
   const REFUS_LIBRE = 'Action refusée : ton prof n\'autorise pas ça (par exemple, enregistrer en dehors d\'un projet).';
 
   return {
@@ -63,14 +68,14 @@ export function createLocalBackend() {
         if (!p) throw new Error('Programme introuvable.');
         if (p.owner !== u.id && u.role !== 'admin') throw new Error('Ce programme ne t\'appartient pas.');
         if (u.role !== 'admin' && !p.project_id && !canFree(u)) throw new Error(REFUS_LIBRE);
-        Object.assign(p, { title, td, code, updated_at: now });
+        Object.assign(p, projectNames(u, p.project_id, title, td), { code, updated_at: now });
         store.set('pl_programs', list);
         return withAuthor(p);
       }
       if (u.role !== 'admin' && !project_id && !canFree(u)) throw new Error(REFUS_LIBRE);
       if (project_id && list.some((x) => x.owner === u.id && x.project_id === project_id))
         throw new Error('Tu as déjà un travail dans ce projet : ouvre-le depuis l\'onglet Projets.');
-      const p = { id: uid(), owner: u.id, title, td, code, project_id, published: false, is_template: false, created_at: now, updated_at: now };
+      const p = { id: uid(), owner: u.id, ...projectNames(u, project_id, title, td), code, project_id, published: false, is_template: false, created_at: now, updated_at: now };
       store.set('pl_programs', [...list, p]);
       return withAuthor(p);
     },

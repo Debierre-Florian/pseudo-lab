@@ -195,7 +195,8 @@ create policy "modification" on public.programs for update to authenticated
   using (owner = auth.uid() or public.is_admin())
   with check (public.is_admin() or (owner = auth.uid() and (project_id is not null or public.can_free())));
 
--- Garde-fou (remplace l'ancien) : un étudiant ne peut pas déplacer un programme d'un projet à l'autre.
+-- Garde-fou (remplace l'ancien) : un étudiant ne peut pas déplacer un programme d'un projet à l'autre
+-- ni renommer son travail de projet.
 create or replace function public.programs_guard() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
@@ -208,6 +209,10 @@ begin
     if not public.is_admin() then
       new.published := old.published; new.is_template := old.is_template; new.project_id := old.project_id;
     end if;
+  end if;
+  -- le travail d'un étudiant dans un projet porte toujours le titre et le TD du projet (il ne peut pas les changer)
+  if not public.is_admin() and new.project_id is not null then
+    select p.title, p.td into new.title, new.td from public.projects p where p.id = new.project_id;
   end if;
   new.updated_at := now();
   return new;

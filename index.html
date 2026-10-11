@@ -11,7 +11,7 @@
 <body>
 
 <header class="top">
-  <a class="brand" href="#editor" aria-label="Pseudo-Lab, accueil"><span class="brand-mark">⟨/⟩</span> Pseudo-Lab</a>
+  <a class="brand" href="#home" aria-label="Pseudo-Lab, accueil"><span class="brand-mark">⟨/⟩</span> Pseudo-Lab</a>
   <nav id="nav" aria-label="Navigation principale">
     <button data-view="editor">Éditeur</button>
     <button data-view="projects">Projets</button>
@@ -29,6 +29,34 @@
 </div>
 
 <main>
+  <!-- ===================== ACCUEIL (pas connecté) ===================== -->
+  <section id="view-home" class="view page home" hidden>
+    <div class="hero">
+      <p class="hero-mark" aria-hidden="true">⟨/⟩</p>
+      <h1>Pseudo-Lab</h1>
+      <p class="hero-lead">Écris ton pseudo-code en français, exécute-le directement dans le navigateur et rends tes exercices d'algorithmique (R1.01).</p>
+      <div class="hero-actions">
+        <button id="home-login" class="btn primary">Se connecter</button>
+        <button id="home-signup" class="btn">Créer un compte</button>
+      </div>
+    </div>
+    <div class="cards home-cards">
+      <article>
+        <h2>Le pseudo-code des TD</h2>
+        <p><code>action … debut … fin</code>, <code>si / sinon / fsi</code>, boucles, tableaux, fonctions et procédures : la même syntaxe qu'en cours, accents et majuscules ignorés.</p>
+      </article>
+      <article>
+        <h2>Exécution immédiate</h2>
+        <p>Le programme tourne dans ton navigateur. Les erreurs sont expliquées en français avec le numéro de la ligne, surlignée dans l'éditeur.</p>
+      </article>
+      <article>
+        <h2>Projets du prof</h2>
+        <p>Retrouve les exercices donnés par ton prof avec leur consigne. Ton travail est enregistré sur ton compte, à ton nom.</p>
+      </article>
+    </div>
+    <p class="muted home-note">Besoin d'un rappel de syntaxe ? Consulte l'onglet <a href="#help">Aide</a>, accessible sans compte.</p>
+  </section>
+
   <!-- ===================== ÉDITEUR ===================== -->
   <section id="view-editor" class="view">
     <div class="toolbar">
@@ -45,7 +73,7 @@
       </div>
       <div class="tb-group">
         <label class="sr-only" for="loader">Charger un modèle ou un exemple</label>
-        <select id="loader"><option value="">Charger un modèle ou un exemple…</option></select>
+        <select id="loader" hidden><option value="">Charger un modèle ou un exemple…</option></select>
         <button id="btn-new" class="btn">Nouveau</button>
         <button id="btn-save" class="btn">Enregistrer</button>
       </div>

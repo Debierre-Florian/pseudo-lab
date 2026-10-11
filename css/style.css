@@ -250,3 +250,16 @@ table.list td.c, table.list th.c { text-align: center; }
 @media (prefers-reduced-motion: no-preference) {
   .btn, #nav button { transition: border-color .15s, color .15s, filter .15s; }
 }
+
+/* ---------- Accueil (pas connecté) ---------- */
+.home { max-width: 960px; }
+.hero { text-align: center; padding: 36px 0 30px; }
+.hero-mark { font-family: var(--mono); color: var(--accent); font-size: 40px; margin: 0; }
+.hero h1 { font-size: 40px; margin: 4px 0 10px; }
+.hero-lead { color: var(--muted); font-size: 18px; max-width: 56ch; margin: 0 auto 22px; }
+.hero-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.hero-actions .btn { padding: 10px 20px; font-size: 16px; }
+.home-cards { margin-top: 10px; }
+.home-note { text-align: center; margin-top: 22px; }
+.home-note a { color: var(--accent); }
+input[readonly] { opacity: .75; cursor: default; }

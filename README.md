@@ -61,6 +61,10 @@ Tant que ce n'est pas fait, le site marche mais l'onglet Projets affiche « La b
 | Exécuter | si le global, son compte **et** le projet l'autorisent | ✔ toujours |
 | Enregistrer hors projet (« programmes libres ») | si le global **et** son compte l'autorisent | ✔ |
 
+Sans être connecté, on ne voit que la page d'**accueil** et l'**Aide**. La liste « Charger un modèle ou un exemple »
+n'est visible que par l'admin. Un étudiant ne peut pas renommer son travail de projet (titre et TD = ceux du projet,
+imposés aussi par la base) ; sans « programmes libres », il n'a plus « Nouveau » et ne peut enregistrer que dans un projet.
+
 Les réglages se font dans **Admin → Réglages** (global + une case par étudiant, avec « tous / aucun » par colonne)
 et sur chaque carte de **Projets** (exécution, travail des autres ; le formulaire de création oblige à choisir).
 ⚠ Le blocage de l'exécution est fait par l'interface : le pseudo-code tourne dans le navigateur, un étudiant

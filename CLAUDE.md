@@ -348,6 +348,11 @@ réglages par projet ET par étudiant ET global, combinés par ET ; le formulair
 exécution oui/non et travail des autres oui/non (radios sans valeur par défaut). `refreshPerms()` relit réglages + profil + projet
 juste avant chaque exécution. Tests : section « permissions » de `tests/run.mjs` (backend démo).
 
+Ensuite : page d'**accueil** (`view-home`) pour les visiteurs non connectés (seules `home` et `help` sont publiques,
+`PUBLIC_VIEWS` dans app.js) ; liste « Charger… » réservée à l'admin ; `applyEditorRules()` verrouille titre/TD (travail de
+projet, ou sans programmes libres), cache « Nouveau » et désactive « Enregistrer » hors projet. Le trigger `programs_guard`
+impose le titre/TD du projet au travail d'un étudiant. L'admin garde toutes les fonctionnalités.
+
 ## 13. Idées d'évolutions ultérieures (ne pas les faire sans demande)
 
 - Bouton **« mot de passe oublié »** (Supabase `resetPasswordForEmail`) + page de réinitialisation.

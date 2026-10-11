@@ -685,6 +685,8 @@ fin`);
   const w = await B.save({ title: 'TD3', td: '', code: 'x', project_id: pr.id });
   ok('permissions : enregistrer dans un projet reste possible', w.project_id === pr.id);
   await refuse('permissions : un seul travail par étudiant et par projet', () => B.save({ title: 'bis', td: '', code: '', project_id: pr.id }));
+  const w2 = await B.save({ id: w.id, title: 'Renommé', td: 'X', code: 'y' });
+  ok('permissions : un étudiant ne peut pas renommer son travail de projet', w2.title === 'TD3' && w2.code === 'y');
   await as('bob@x.fr');
   ok('permissions : travail des autres caché si le projet ne le partage pas', (await B.listProjectWork(pr.id)).length === 0);
   await as('a@x.fr');
