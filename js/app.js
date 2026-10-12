@@ -1,6 +1,9 @@
-import { makeLang, runSource, normalise, StopSignal } from './pseudo.js';
-import { CONFIG } from './config.js';
-import { createLocalBackend } from './backend-local.js';
+// ?v=… : numéro de version (changé par « node tools/version.mjs » avant chaque mise en ligne) pour que
+// les navigateurs ne gardent pas d'anciens fichiers en cache.
+import { makeLang, runSource, normalise, StopSignal } from './pseudo.js?v=202610121823';
+import { CONFIG } from './config.js?v=202610121823';
+import { createLocalBackend } from './backend-local.js?v=202610121823';
+const V = '?v=202610121823';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -400,7 +403,7 @@ async function onLoaderChange(e) {
   if (v.startsWith('ex:')) {
     const ex = state.examples.find((x) => x.id === v.slice(3));
     try {
-      const code = await (await fetch('lang/exemples/' + ex.fichier)).text();
+      const code = await (await fetch('lang/exemples/' + ex.fichier + V)).text();
       setDoc({ title: ex.titre, td: ex.td, code }); con.clear(); showView('editor');
     } catch { toast('Impossible de charger cet exemple.', 'err'); }
   } else if (v.startsWith('tpl:')) {
@@ -947,14 +950,14 @@ async function submitAuth(e) {
    =================================================================== */
 async function init() {
   // --- langage ---
-  state.langJson = await (await fetch('lang/langage.json')).json();
+  state.langJson = await (await fetch('lang/langage.json' + V)).json();
   state.lang = makeLang(state.langJson);
   defineMode(state.lang);
   setupEditor();
 
   const [modele, examples] = await Promise.all([
-    fetch('lang/modele.pseudo').then((r) => r.text()),
-    fetch('lang/exemples/index.json').then((r) => r.json()).catch(() => []),
+    fetch('lang/modele.pseudo' + V).then((r) => r.text()),
+    fetch('lang/exemples/index.json' + V).then((r) => r.json()).catch(() => []),
   ]);
   state.modele = modele; state.examples = examples;
   state.cm.setValue(''); state.cm.clearHistory(); setDirty(false);   // éditeur vide au départ
@@ -970,7 +973,7 @@ async function init() {
   try {
     if (useSupabase) {
       await loadScript('vendor/supabase.js');
-      const { createSupabaseBackend } = await import('./backend-supabase.js');
+      const { createSupabaseBackend } = await import('./backend-supabase.js?v=202610121823');
       state.backend = createSupabaseBackend(CONFIG);
     }
   } catch (e) { toast('Supabase injoignable, passage en mode démo.', 'err'); }

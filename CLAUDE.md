@@ -205,6 +205,9 @@ Toute nouvelle fonctionnalité de données doit être ajoutée **aux deux backen
 1. Fichiers sur un dépôt GitHub **public**, `index.html` à la **racine** du dépôt. Pages : Settings → Pages → Deploy from a branch → `main` / root.
 2. `js/config.js` contient l'URL du projet Supabase et la clé **anon**. Vide = mode démo (bandeau jaune).
 3. Après chaque modification : commit sur GitHub, attendre 1–2 min, puis **Ctrl+Maj+R** (cache du navigateur, ça a déjà piégé l'utilisateur).
+   **Avant chaque envoi : `node tools/version.mjs`** — change le `?v=…` des fichiers (index.html, imports et fetch de app.js).
+   GitHub Pages sert les fichiers avec `max-age=600` : sans ce numéro, un navigateur peut garder un ancien `app.js` avec un
+   nouveau `index.html` (ex. bouton « Nouvel essai » resté caché). Tout nouvel import/fetch dans app.js doit porter `?v=…` / `+ V`.
 4. À chaque livraison, **liste précisément les fichiers modifiés/ajoutés** pour que l'utilisateur sache quoi renvoyer sur GitHub.
 
 ## 10. Tests et vérification
@@ -388,6 +391,7 @@ n'importe quelle version (copie), déverrouille ou donne +1 essai (page « Trava
 ## 14. Pièges connus
 
 - **Cache navigateur** : après un déploiement, l'ancien `config.js` ou `pseudo.js` peut rester → Ctrl+Maj+R ou navigation privée. À rappeler à l'utilisateur.
+  Le numéro de version `?v=…` (`node tools/version.mjs`, voir section 9) évite ce problème pour les étudiants.
 - **Mode démo silencieux** : si `config.js` est vide ou si `vendor/supabase.js` ne charge pas, le site retombe en démo (bandeau jaune) ; les comptes sont alors locaux au navigateur.
 - Supabase : « Enable email provider » doit être **ON** ; « Confirm email » **OFF** ; sinon « Trop de tentatives ». Le message « Success. No rows returned » d'un `update` SQL **ne prouve pas** qu'une ligne a été modifiée (vérifier avec un `select`).
 - `fin` est ambigu : fin du programme / fin d'un sous-programme / `fin si`, `fin pour`, `fin tant que` (fusionnés par le lexer s'ils sont sur la même ligne). Avec les sous-programmes, bien vérifier l'imbrication des `fin`.
