@@ -82,6 +82,19 @@ export function createSupabaseBackend(cfg) {
       const { error } = await sb.from('programs').delete().eq('id', id);
       fail(error);
     },
+    // « J'ai fini » / nouvel essai : le trigger programs_guard compte les essais et garde les versions
+    async submitWork(id) {
+      const { data, error } = await sb.from('programs').update({ submitted_at: new Date().toISOString() }).eq('id', id).select(SELECT).single();
+      fail(error); return toProg(data);
+    },
+    async newAttempt(id) {
+      const { data, error } = await sb.from('programs').update({ submitted_at: null }).eq('id', id).select(SELECT).single();
+      fail(error); return toProg(data);
+    },
+    async setWork(id, patch) {
+      const { data, error } = await sb.from('programs').update(patch).eq('id', id).select(SELECT).single();
+      fail(error); return toProg(data);
+    },
     async setFlags(id, flags) {
       const { error } = await sb.from('programs').update(flags).eq('id', id);
       fail(error);

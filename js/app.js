@@ -160,8 +160,10 @@ function setDirty(v) { state.dirty = v; $('#dirty').hidden = !v; }
    Document courant
    =================================================================== */
 // opened = un projet ou un programme a été ouvert : c'est seulement alors qu'un étudiant peut aller dans l'éditeur
-function setDoc({ id = null, owner = null, author = null, isCopy = false, title = '', td = '', code, project = null, opened = true }) {
-  state.doc = { id, owner, author, isCopy, project, opened };
+// work = état du rendu du travail ouvert (submitted_at, attempts, extra_attempts, versions) ; null hors projet / copie
+const pickWork = (r) => (r ? { submitted_at: r.submitted_at || null, attempts: r.attempts || 0, extra_attempts: r.extra_attempts || 0, versions: r.versions || [] } : null);
+function setDoc({ id = null, owner = null, author = null, isCopy = false, title = '', td = '', code, project = null, opened = true, work = null }) {
+  state.doc = { id, owner, author, isCopy, project, opened, work: pickWork(work) };
   $('#title').value = title; $('#td').value = td;
   state.cm.setValue(code); state.cm.clearHistory();
   clearErrLine(); setDirty(false);
@@ -187,6 +189,19 @@ function renderInfoBar() {
   if (who) parts.push(parts.length ? '\n' : '', who);
   if (!project && state.me && !canFree())
     parts.push(parts.length ? '\n' : '', 'Ton prof a limité le travail aux projets : ouvre un projet dans l\'onglet « Projets » pour pouvoir enregistrer.');
+  if (project && project.submit_mode && !isCopy) {
+    const w = state.doc.work;
+    const total = allowedAttempts(project, w);
+    if (w && w.submitted_at) {
+      parts.push(parts.length ? '\n' : '', h('strong', {}, `✓ Rendu le ${fmtDate(w.submitted_at)}`),
+        ` (essai ${w.attempts}/${total}) — ton travail est verrouillé.`,
+        project.run_after_submit ? ' Tu peux maintenant l\'exécuter pour voir le résultat.' : '');
+    } else if (!isAdmin() || owner === (state.me && state.me.id) || !author) {
+      parts.push(parts.length ? '\n' : '', `Quand tu as terminé, clique sur « J'ai fini » : ton travail sera rendu et verrouillé`,
+        project.run_after_submit ? ' — tu pourras l\'exécuter seulement après.' : '.',
+        total > 1 ? ` (${total} essais permis)` : '');
+    }
+  }
   bar.replaceChildren(...parts);
   bar.hidden = !parts.length;
 }
@@ -200,23 +215,46 @@ async function newDoc(code = '', title = '', td = '') {
   showView('editor');
 }
 
+// renvoie true si l'enregistrement a réussi
 async function save() {
-  if (!state.me) return openAuth('Connecte-toi pour enregistrer tes programmes.');
+  if (!state.me) { openAuth('Connecte-toi pour enregistrer tes programmes.'); return false; }
+  if (isLockedForMe()) { toast('Ton travail est rendu : il est verrouillé.', 'err'); return false; }
   const title = $('#title').value.trim() || 'Sans titre';
   const td = $('#td').value.trim();
   // une copie du travail d'un autre n'entre pas dans le projet : elle devient un programme libre
   const project = state.doc.project && !state.doc.isCopy ? state.doc.project : null;
-  if (!project && !canFree())
-    return toast('Ton prof a limité l\'enregistrement aux projets : ouvre un projet dans l\'onglet « Projets ».', 'err');
+  if (!project && !canFree()) {
+    toast('Ton prof a limité l\'enregistrement aux projets : ouvre un projet dans l\'onglet « Projets ».', 'err');
+    return false;
+  }
   try {
     const canUpdate = state.doc.id && !state.doc.isCopy;
     const row = await state.backend.save({ id: canUpdate ? state.doc.id : null, title, td, code: state.cm.getValue(), project_id: project ? project.id : null });
-    state.doc = { id: row.id, owner: row.owner, author: row.author, isCopy: false, project: state.doc.project, opened: true };
-    renderInfoBar();
+    state.doc = { id: row.id, owner: row.owner, author: row.author, isCopy: false, project: state.doc.project, opened: true, work: pickWork(row) };
     $('#title').value = row.title;
     setDirty(false);
+    renderInfoBar(); applyEditorRules(); updateRunButton();
     toast('Enregistré ✓');
-    if (state.me && row.owner === state.me.id) $('#info-bar').hidden = true;
+    return true;
+  } catch (e) { toast(e.message, 'err'); return false; }
+}
+
+// « J'ai fini » : enregistre, puis rend le travail (verrouillé ensuite)
+async function finish() {
+  const p = state.doc.project;
+  if (!p || !state.me || state.doc.isCopy) return;
+  const total = allowedAttempts(p, state.doc.work);
+  const left = total - ((state.doc.work && state.doc.work.attempts) || 0) - 1;
+  const msg = 'Tu as vraiment fini ?\n\nTon travail va être rendu et verrouillé : tu ne pourras plus le modifier'
+    + (p.run_after_submit ? ', mais tu pourras l\'exécuter pour voir le résultat.' : '.')
+    + (left > 0 ? `\n\nIl te restera ${left} essai(s) : ton prof pourra te laisser repartir de ce code.` : '');
+  if (!confirm(msg)) return;
+  if (!state.doc.id || state.dirty) { if (!(await save())) return; }
+  try {
+    const row = await state.backend.submitWork(state.doc.id);
+    state.doc.work = pickWork(row);
+    renderInfoBar(); applyEditorRules(); updateRunButton();
+    toast('Travail rendu ✓');
   } catch (e) { toast(e.message, 'err'); }
 }
 
@@ -264,8 +302,13 @@ function runBlock() {
   if (state.me && state.me.can_run === false) return 'Ton prof a désactivé l\'exécution pour ton compte.';
   const p = state.doc.project;
   if (p && !p.run_enabled) return `L'exécution est désactivée dans le projet « ${p.title} ».`;
+  if (p && p.submit_mode && p.run_after_submit && !(state.doc.work && state.doc.work.submitted_at))
+    return 'Dans ce projet, tu pourras exécuter ton programme après avoir cliqué sur « J\'ai fini ».';
   return null;
 }
+const allowedAttempts = (p, w) => Math.max(1, (p && p.max_attempts) || 1) + ((w && w.extra_attempts) || 0);
+// travail de projet rendu : verrouillé pour l'étudiant (l'admin peut toujours modifier)
+const isLockedForMe = () => !isAdmin() && !state.doc.isCopy && !!state.doc.project && !!(state.doc.work && state.doc.work.submitted_at);
 const canFree = () => isAdmin() || (!!state.me && state.settings.free_programs && state.me.can_free !== false);
 // Étudiant : le titre et le TD d'un travail de projet sont ceux du projet (non modifiables) ; sans
 // « programmes libres », pas de « Nouveau » ni d'enregistrement hors projet. L'admin a tout.
@@ -279,8 +322,13 @@ function applyEditorRules() {
     $(id).title = locked ? (inProject ? 'Le titre est celui du projet' : 'Ton prof a limité le travail aux projets') : '';
   }
   $('#btn-new').hidden = student && !free;
-  $('#btn-save').disabled = student && !inProject && !free;
-  $('#btn-save').title = $('#btn-save').disabled ? 'Ouvre un projet (onglet Projets) pour enregistrer ton travail' : 'Ctrl + S';
+  const lockedWork = isLockedForMe();
+  $('#btn-save').disabled = (student && !inProject && !free) || lockedWork;
+  $('#btn-save').title = lockedWork ? 'Travail rendu : verrouillé'
+    : $('#btn-save').disabled ? 'Ouvre un projet (onglet Projets) pour enregistrer ton travail' : 'Ctrl + S';
+  state.cm.setOption('readOnly', lockedWork);
+  state.cm.getWrapperElement().classList.toggle('CodeMirror-readonly', lockedWork);
+  $('#btn-finish').hidden = !(student && inProject && state.doc.project.submit_mode && !lockedWork);
 }
 function updateRunButton() {
   const why = runBlock();
@@ -347,7 +395,7 @@ async function openProgram(p) {
   const project = p.project_id ? await projectById(p.project_id) : null;
   setDoc({
     id: editOriginal ? p.id : null, owner: p.owner, author: p.author, isCopy: !editOriginal,
-    title: editOriginal ? p.title : p.title + ' (copie)', td: p.td, code: p.code, project,
+    title: editOriginal ? p.title : p.title + ' (copie)', td: p.td, code: p.code, project, work: editOriginal ? p : null,
   });
   con.clear(); showView('editor');
 }
@@ -525,22 +573,47 @@ async function renderProjects() {
     state.projects = list;
     if (isAdmin()) return drawAdminProjects(body, list);
     const mine = await state.backend.listMine();
-    const started = new Set(mine.filter((p) => p.project_id).map((p) => p.project_id));
+    const workOf = new Map(mine.filter((p) => p.project_id).map((p) => [p.project_id, p]));
+    const started = new Set(workOf.keys());
     if (!list.length) return body.replaceChildren(empty('Aucun projet pour l\'instant.'));
     body.replaceChildren(...byTd(list).flatMap(([td, projects]) => [
       h('h2', { class: 'group-title' }, td),
       h('div', { class: 'shared-grid' }, projects.map((pr) => h('div', { class: 'card' },
         h('h3', {}, pr.title),
         h('div', { class: 'meta' },
-          started.has(pr.id) ? h('span', { class: 'badge pub' }, 'Commencé') : '', ' ',
-          pr.run_enabled ? '' : h('span', { class: 'badge off' }, 'Exécution désactivée')),
+          workStatus(pr, workOf.get(pr.id)), ' ',
+          pr.run_enabled ? '' : h('span', { class: 'badge off' }, 'Exécution désactivée'), ' ',
+          pr.submit_mode && pr.run_after_submit && pr.run_enabled ? h('span', { class: 'badge tpl' }, 'Exécution après « J\'ai fini »') : ''),
         pr.instructions ? h('p', { class: 'consigne' }, pr.instructions) : null,
         h('div', { class: 'row' },
-          h('button', { class: 'btn small primary', onclick: () => openMyProjectWork(pr) }, started.has(pr.id) ? 'Ouvrir mon travail' : 'Commencer'),
+          h('button', { class: 'btn small primary', onclick: () => openMyProjectWork(pr) },
+            workOf.get(pr.id) && workOf.get(pr.id).submitted_at ? 'Voir mon travail rendu' : started.has(pr.id) ? 'Ouvrir mon travail' : 'Commencer'),
+          newAttemptButton(pr, workOf.get(pr.id)),
           pr.share_work && state.me.can_view_others !== false
             ? h('button', { class: 'btn small', onclick: () => showView('projects/' + pr.id) }, 'Voir le travail des autres') : null)))),
     ]));
   } catch (e) { body.replaceChildren(empty(e.message)); }
+}
+
+// Badge d'état du travail d'un étudiant dans un projet
+function workStatus(pr, w) {
+  if (!w) return '';
+  if (w.submitted_at) return h('span', { class: 'badge pub' }, pr.submit_mode ? `Rendu ✓ (essai ${w.attempts}/${allowedAttempts(pr, w)})` : 'Rendu ✓');
+  return h('span', { class: 'badge pub' }, w.attempts ? `Essai ${w.attempts + 1}/${allowedAttempts(pr, w)} en cours` : 'Commencé');
+}
+// « Nouvel essai » : après un rendu, s'il reste des essais (fixés par l'admin), on repart du code rendu
+function newAttemptButton(pr, w) {
+  if (!w || !w.submitted_at) return null;
+  const left = allowedAttempts(pr, w) - w.attempts;
+  if (left <= 0) return null;
+  return h('button', {
+    class: 'btn small',
+    onclick: async () => {
+      if (!confirm(`Commencer un nouvel essai pour « ${pr.title} » ?\n\nTu repars de ton code déjà rendu. Il te reste ${left} essai(s).`)) return;
+      try { await state.backend.newAttempt(w.id); await openMyProjectWork(pr); }
+      catch (e) { toast(e.message, 'err'); }
+    },
+  }, `Nouvel essai (${left} restant${left > 1 ? 's' : ''})`);
 }
 
 // Projets rangés par TD (ordre naturel : TD1, TD2… TD10), du plus ancien au plus récent dans chaque TD
@@ -588,7 +661,8 @@ function drawAdminProjects(body, list) {
       h('h3', {}, pr.title),
       h('div', { class: 'meta' }, 'créé le ', fmtDate(pr.created_at), ' ',
         pr.visible ? '' : h('span', { class: 'badge off' }, 'Masqué'), ' ',
-        pr.visible && pr.hidden_for && pr.hidden_for.length ? h('span', { class: 'badge tpl' }, `Masqué pour ${pr.hidden_for.length} étudiant(s)`) : ''),
+        pr.visible && pr.hidden_for && pr.hidden_for.length ? h('span', { class: 'badge tpl' }, `Masqué pour ${pr.hidden_for.length} étudiant(s)`) : '', ' ',
+        pr.submit_mode ? h('span', { class: 'badge pub' }, `« J'ai fini » · ${pr.max_attempts || 1} essai(s)${pr.run_after_submit ? ' · exécution après' : ''}`) : ''),
       pr.instructions ? h('p', { class: 'consigne' }, pr.instructions) : null,
       h('div', { class: 'toggles' },
         toggle(pr, 'visible', 'Visible par les étudiants', true),
@@ -623,13 +697,34 @@ async function renderProjectWork(pr) {
       missing = h('p', { class: 'muted' }, names.length ? `Pas encore commencé (${names.length}) : ${names.join(', ')}` : 'Tous les étudiants inscrits ont commencé.');
     }
     if (!rows.length) return body.replaceChildren(back, title, empty('Personne n\'a encore enregistré de travail dans ce projet.'), missing || '');
+    const refresh = () => renderProjectWork(pr);
+    const adminSet = async (p, patch, msg) => {
+      try { await state.backend.setWork(p.id, patch); toast(msg); refresh(); } catch (e) { toast(e.message, 'err'); }
+    };
+    // versions rendues : l'admin peut ouvrir n'importe laquelle (copie, l'original n'est pas touché)
+    const versionPicker = (p) => (p.versions && p.versions.length ? h('select', {
+      'aria-label': `Versions rendues par ${p.author}`,
+      onchange: (e) => {
+        const v = p.versions.find((x) => String(x.n) === e.target.value); e.target.value = '';
+        if (!v || !confirmDiscard()) return;
+        setDoc({ owner: p.owner, author: p.author, isCopy: true, title: `${p.title} — version ${v.n} de ${p.author}`, td: p.td, code: v.code, project: pr });
+        con.clear(); showView('editor');
+      },
+    }, h('option', { value: '' }, `Versions (${p.versions.length})…`),
+      p.versions.map((v) => h('option', { value: String(v.n) }, `Version ${v.n} — ${fmtDate(v.at)}`)))
+      : null);
+    const cols = isAdmin() ? ['Étudiant', 'État', 'Essais', 'Modifié', ''] : ['Étudiant', 'État', 'Modifié', ''];
     body.replaceChildren(back, title, h('div', { class: 'table-wrap' }, h('table', { class: 'list' },
-      h('thead', {}, h('tr', {}, ['Étudiant', 'Titre', 'Modifié', ''].map((c) => h('th', {}, c)))),
+      h('thead', {}, h('tr', {}, cols.map((c) => h('th', {}, c)))),
       h('tbody', {}, rows.map((p) => h('tr', {},
         h('td', {}, p.author),
-        h('td', {}, p.title),
+        h('td', {}, p.submitted_at ? `Rendu le ${fmtDate(p.submitted_at)}` : p.attempts ? `Essai ${p.attempts + 1} en cours` : 'En cours'),
+        isAdmin() ? h('td', {}, `${p.attempts || 0}/${allowedAttempts(pr, p)}`) : null,
         h('td', {}, fmtDate(p.updated_at)),
         h('td', {}, h('div', { class: 'actions' },
+          isAdmin() ? versionPicker(p) : null,
+          isAdmin() && p.submitted_at ? h('button', { class: 'btn small', title: 'Rouvre le travail sans compter d\'essai', onclick: () => adminSet(p, { submitted_at: null }, 'Travail déverrouillé ✓') }, 'Déverrouiller') : null,
+          isAdmin() && pr.submit_mode ? h('button', { class: 'btn small', title: 'Donne un essai de plus à cet étudiant', onclick: () => adminSet(p, { extra_attempts: (p.extra_attempts || 0) + 1 }, 'Un essai de plus ✓') }, '+1 essai') : null,
           h('button', { class: 'btn small', onclick: () => openProgram(p) }, isAdmin() || p.owner === state.me.id ? 'Ouvrir' : 'Ouvrir une copie')))))))),
     missing || '');
   } catch (e) { body.replaceChildren(back, title, empty(e.message)); }
@@ -639,7 +734,7 @@ async function openMyProjectWork(pr) {
   if (!confirmDiscard()) return;
   try {
     const mine = (await state.backend.listProjectWork(pr.id)).find((p) => p.owner === state.me.id);
-    if (mine) setDoc({ id: mine.id, owner: mine.owner, author: mine.author, title: mine.title, td: mine.td, code: mine.code, project: pr });
+    if (mine) setDoc({ id: mine.id, owner: mine.owner, author: mine.author, title: mine.title, td: mine.td, code: mine.code, project: pr, work: mine });
     else setDoc({ title: pr.title, td: pr.td, code: pr.starter_code || '', project: pr });
     con.clear(); showView('editor');
     if (!mine) toast('Projet ouvert : clique sur « Enregistrer » pour garder ton travail.');
@@ -656,6 +751,11 @@ async function removeProject(pr) {
 }
 
 let editingProject = null;
+// les options « exécution après » et « essais » n'ont de sens qu'avec le bouton « J'ai fini »
+function syncSubmitFields() {
+  const on = $('#p-submit').checked;
+  for (const id of ['#p-run-after', '#p-attempts']) { $(id).disabled = !on; $(id).closest('label').classList.toggle('off', !on); }
+}
 function projectMsg(text) { const m = $('#project-msg'); m.textContent = text; m.hidden = !text; }
 async function openProjectDialog(pr = null) {
   editingProject = pr;
@@ -682,7 +782,11 @@ async function openProjectDialog(pr = null) {
     f.elements['p-run'].value = pr.run_enabled ? '1' : '0';
     f.elements['p-share'].value = pr.share_work ? '1' : '0';
     f.elements['p-visible'].value = pr.visible === false ? '0' : '1';
+    $('#p-submit').checked = !!pr.submit_mode;
+    $('#p-run-after').checked = !!pr.run_after_submit;
+    $('#p-attempts').value = pr.max_attempts || 1;
   }
+  syncSubmitFields();
   projectMsg('');
   $('#project-dialog').showModal();
   $('#p-title').focus();
@@ -695,6 +799,9 @@ async function submitProject(e) {
     instructions: $('#p-instructions').value.trim(), starter_code: $('#p-code').value,
     run_enabled: f.elements['p-run'].value === '1', share_work: f.elements['p-share'].value === '1',
     visible: f.elements['p-visible'].value === '1',
+    submit_mode: $('#p-submit').checked,
+    run_after_submit: $('#p-submit').checked && $('#p-run-after').checked,
+    max_attempts: Math.min(20, Math.max(1, parseInt($('#p-attempts').value, 10) || 1)),
     hidden_for: $$('#p-students input:checked').map((x) => x.value),
   };
   if (!fields.title) return projectMsg('Donne un titre au projet.');
@@ -860,6 +967,8 @@ async function init() {
   $('#btn-run').addEventListener('click', run);
   $('#btn-stop').addEventListener('click', stop);
   $('#btn-save').addEventListener('click', save);
+  $('#btn-finish').addEventListener('click', finish);
+  $('#p-submit').addEventListener('change', syncSubmitFields);
   $('#btn-new').addEventListener('click', () => newDoc());
   $('#btn-clear').addEventListener('click', () => { con.clear(); clearErrLine(); });
   $('#loader').addEventListener('change', onLoaderChange);

@@ -112,23 +112,55 @@ create policy "modification" on public.programs for update to authenticated
   with check (public.is_admin() or (owner = auth.uid() and
     (case when project_id is null then public.can_free() else public.can_use_project(project_id) end)));
 
--- Garde-fou (remplace l'ancien) : un étudiant ne peut pas déplacer un programme d'un projet à l'autre
--- ni renommer son travail de projet.
+-- 5) Rendu « J'ai fini » et essais (versions) -------------------------------
+alter table public.projects add column if not exists submit_mode      boolean not null default false; -- bouton « J'ai fini »
+alter table public.projects add column if not exists run_after_submit boolean not null default false; -- exécution seulement après « J'ai fini »
+alter table public.projects add column if not exists max_attempts     int     not null default 1;     -- nombre de rendus permis
+alter table public.programs add column if not exists submitted_at   timestamptz;                       -- rempli = rendu, donc verrouillé
+alter table public.programs add column if not exists attempts       int   not null default 0;          -- nombre de rendus déjà faits
+alter table public.programs add column if not exists extra_attempts int   not null default 0;          -- essais en plus donnés par l'admin
+alter table public.programs add column if not exists versions       jsonb not null default '[]'::jsonb; -- copie de chaque version rendue
+
+-- Garde-fou (remplace l'ancien) : un étudiant ne peut pas déplacer un programme d'un projet à l'autre,
+-- ni renommer son travail de projet, ni modifier un travail rendu ; « nouvel essai » seulement s'il en reste.
 create or replace function public.programs_guard() returns trigger
 language plpgsql security definer set search_path = public as $$
+declare
+  is_adm  boolean := public.is_admin();
+  allowed int;
 begin
   if tg_op = 'INSERT' then
-    if not public.is_admin() then
+    if not is_adm then
       new.published := false; new.is_template := false; new.owner := auth.uid();
+      new.submitted_at := null; new.attempts := 0; new.extra_attempts := 0; new.versions := '[]'::jsonb;
     end if;
   else
     new.owner := old.owner;
-    if not public.is_admin() then
+    if not is_adm then
       new.published := old.published; new.is_template := old.is_template; new.project_id := old.project_id;
+      new.attempts := old.attempts; new.extra_attempts := old.extra_attempts; new.versions := old.versions;
+      if old.submitted_at is not null then
+        if new.submitted_at is null then
+          -- « Nouvel essai » : seulement s'il lui en reste
+          select max_attempts into allowed from public.projects where id = old.project_id;
+          if old.attempts >= coalesce(allowed, 1) + old.extra_attempts then
+            raise exception 'Plus d''essai disponible pour ce projet : demande à ton prof.';
+          end if;
+        else
+          -- travail rendu : verrouillé
+          new.code := old.code; new.submitted_at := old.submitted_at;
+        end if;
+      end if;
+    end if;
+    -- « J'ai fini » : heure du rendu, un essai de plus, et une copie de la version rendue
+    if old.submitted_at is null and new.submitted_at is not null then
+      new.submitted_at := now();
+      new.attempts := old.attempts + 1;
+      new.versions := old.versions || jsonb_build_array(jsonb_build_object('n', old.attempts + 1, 'code', new.code, 'at', now()));
     end if;
   end if;
   -- le travail d'un étudiant dans un projet porte toujours le titre et le TD du projet (il ne peut pas les changer)
-  if not public.is_admin() and new.project_id is not null then
+  if not is_adm and new.project_id is not null then
     select p.title, p.td into new.title, new.td from public.projects p where p.id = new.project_id;
   end if;
   new.updated_at := now();

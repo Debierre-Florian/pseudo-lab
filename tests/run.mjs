@@ -718,6 +718,27 @@ fin`);
   await B.setProjectsFlags([prep.id, ex2.id], { visible: true });
   await as('bob@x.fr');
   ok('visibilité : « tout afficher » sur un TD rend ses projets visibles', (await B.listProjects()).some((p) => p.id === prep.id));
+  // rendu « J'ai fini » : verrouillage, essais, versions
+  await as('a@x.fr');
+  const exam = await B.saveProject({ title: 'Contrôle', td: 'TD6', submit_mode: true, run_after_submit: true, max_attempts: 2 });
+  await as('bob@x.fr');
+  const t1 = await B.save({ title: 'x', td: '', code: 'v1', project_id: exam.id });
+  const r1 = await B.submitWork(t1.id);
+  ok('rendu : « J\'ai fini » enregistre l\'heure, compte l\'essai et garde la version', !!r1.submitted_at && r1.attempts === 1 && r1.versions.length === 1 && r1.versions[0].code === 'v1');
+  await refuse('rendu : un travail rendu est verrouillé', () => B.save({ id: t1.id, title: 'x', td: '', code: 'triche' }));
+  await B.newAttempt(t1.id);
+  await B.save({ id: t1.id, title: 'x', td: '', code: 'v2' });
+  const r2 = await B.submitWork(t1.id);
+  ok('rendu : nouvel essai puis 2e rendu (2 versions)', r2.attempts === 2 && r2.versions.map((v) => v.code).join() === 'v1,v2');
+  await refuse('rendu : plus d\'essai au-delà du nombre fixé par l\'admin', () => B.newAttempt(t1.id));
+  await as('a@x.fr');
+  await B.setWork(t1.id, { extra_attempts: 1 });
+  await as('bob@x.fr');
+  ok('rendu : l\'admin peut donner un essai de plus', (await B.newAttempt(t1.id)).submitted_at === null);
+  await B.submitWork(t1.id);
+  await as('a@x.fr');
+  ok('rendu : l\'admin peut déverrouiller sans compter d\'essai', (await B.setWork(t1.id, { submitted_at: null })).attempts === 3);
+
   await as('a@x.fr');
   await B.removeProject(pr.id);
   ok('permissions : supprimer un projet garde le travail (devient libre)', (await B.listAll()).some((p) => p.id === w.id && p.project_id === null));

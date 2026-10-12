@@ -69,6 +69,10 @@ imposés aussi par la base) ; sans « programmes libres », il n'a plus « Nouve
 Un projet peut être **masqué** (en préparation) pour tous les étudiants, ou seulement pour certains ; la page Projets
 les range par TD avec « tout afficher / tout masquer ». L'éditeur s'ouvre vide (sauf code de départ du projet).
 
+Option de projet **« J'ai fini »** : l'étudiant rend son travail (avec confirmation), qui est alors verrouillé ; option
+« exécution seulement après J'ai fini » ; nombre d'essais par projet (« Nouvel essai » repart du code rendu). L'admin voit
+toutes les versions rendues, peut déverrouiller ou donner un essai de plus à un étudiant.
+
 Les réglages se font dans **Admin → Réglages** (global + une case par étudiant, avec « tous / aucun » par colonne)
 et sur chaque carte de **Projets** (exécution, travail des autres ; le formulaire de création oblige à choisir).
 ⚠ Le blocage de l'exécution est fait par l'interface : le pseudo-code tourne dans le navigateur, un étudiant

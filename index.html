@@ -75,6 +75,7 @@
         <select id="loader" hidden><option value="">Charger un modèle ou un exemple…</option></select>
         <button id="btn-new" class="btn">Nouveau</button>
         <button id="btn-save" class="btn">Enregistrer</button>
+        <button id="btn-finish" class="btn finish" hidden title="Rendre ton travail (il sera verrouillé)">✓ J'ai fini</button>
       </div>
       <div class="tb-group tb-run">
         <span id="run-lock" class="run-lock" hidden></span>
@@ -262,7 +263,7 @@ longueur(texte)   aleatoire(1, 6)</pre>
     </div>
     <p id="auth-why" class="muted" hidden></p>
     <label class="field" id="f-pseudo" hidden>Pseudo
-      <input id="a-pseudo" type="text" maxlength="24" autocomplete="nickname" placeholder="ex : flo_42">
+      <input id="a-pseudo" type="text" maxlength="40" autocomplete="name" placeholder="ex : NOM Florian">
     </label>
     <label class="field">Email
       <input id="a-email" type="email" required autocomplete="email">
@@ -305,6 +306,12 @@ longueur(texte)   aleatoire(1, 6)</pre>
       <legend>Les étudiants voient le travail des autres</legend>
       <label><input type="radio" name="p-share" value="1" required> Oui</label>
       <label><input type="radio" name="p-share" value="0"> Non</label>
+    </fieldset>
+    <fieldset class="choice col">
+      <legend>Rendu</legend>
+      <label><input type="checkbox" id="p-submit"> Bouton « J'ai fini » : une fois rendu, le travail est verrouillé</label>
+      <label><input type="checkbox" id="p-run-after"> L'exécution n'est possible qu'après « J'ai fini » (oblige à réfléchir avant)</label>
+      <label>Nombre d'essais (rendus) permis <input type="number" id="p-attempts" min="1" max="20" value="1"></label>
     </fieldset>
     <fieldset class="choice">
       <legend>Visibilité pour les étudiants</legend>

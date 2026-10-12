@@ -273,3 +273,11 @@ details.hidden-for summary { cursor: pointer; font-weight: 500; }
 .td-head .group-title { margin: 0; }
 .td-head .td-actions { font-size: 13px; color: var(--muted); }
 .card.hidden-proj { border-style: dashed; opacity: .85; }
+
+/* ---------- Rendu « J'ai fini » ---------- */
+.btn.finish { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+fieldset.choice.col { flex-direction: column; gap: 6px; }
+fieldset.choice input[type=number] { width: 64px; margin-left: 6px; font: inherit; padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); }
+fieldset.choice label.off { opacity: .5; }
+.card .row select, table.list select { font-size: 13px; padding: 3px 6px; }
+.CodeMirror-readonly .CodeMirror-cursor { display: none; }

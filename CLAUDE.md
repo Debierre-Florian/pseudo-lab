@@ -180,6 +180,9 @@ listProjectWork(projectId), listStudents() (admin), setStudent(id, patch) (admin
 Un programme : `{id, owner, author, title, td, code, project_id, published, is_template, created_at, updated_at}`.
 `session()` renvoie aussi `can_run, can_free, can_view_others`. Un projet : `{id, title, td, instructions, starter_code, run_enabled, share_work, visible, hidden_for[], created_at, updated_at}`.
 `setProjectsFlags(ids, patch)` (admin) : modifie plusieurs projets d'un coup (« tout afficher / tout masquer » un TD).
+Rendu : `submitWork(id)` (« J'ai fini »), `newAttempt(id)` (nouvel essai s'il en reste), `setWork(id, patch)` (admin : déverrouiller
+`{submitted_at:null}`, `{extra_attempts:n}`). Projet : `submit_mode, run_after_submit, max_attempts` ; programme : `submitted_at,
+attempts, extra_attempts, versions[{n,code,at}]`.
 Toute nouvelle fonctionnalité de données doit être ajoutée **aux deux backends** et à `schema.sql`.
 
 ## 8. Base de données et sécurité (`supabase/schema.sql`)
@@ -363,6 +366,12 @@ Visibilité : `projects.visible` (décoché = en préparation, invisible pour to
 « travail des autres ». Le formulaire impose le choix Visible/Masqué ; la page Projets range les projets par TD avec
 « tout afficher / tout masquer ». L'éditeur s'ouvre **vide** (le modèle de base ne sert plus qu'à l'admin : liste « Charger… »
 et bouton « Prendre le modèle de base » du formulaire de projet).
+
+Rendu « J'ai fini » (option du projet) : confirmation, puis travail verrouillé (`programs_guard` remet l'ancien code si un
+étudiant modifie un travail rendu, compte l'essai, ajoute la version dans `versions`). Option « exécution seulement après
+J'ai fini » (`runBlock`). `max_attempts` essais par projet + `extra_attempts` donnés par l'admin à un étudiant ; « Nouvel essai »
+est sur la carte du projet (après être sorti de l'éditeur) et repart du code rendu. L'admin voit l'état/essais de chacun, ouvre
+n'importe quelle version (copie), déverrouille ou donne +1 essai (page « Travail des étudiants »).
 
 ## 13. Idées d'évolutions ultérieures (ne pas les faire sans demande)
 
