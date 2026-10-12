@@ -370,7 +370,7 @@ et bouton « Prendre le modèle de base » du formulaire de projet).
 Rendu « J'ai fini » (option du projet) : confirmation, puis travail verrouillé (`programs_guard` remet l'ancien code si un
 étudiant modifie un travail rendu, compte l'essai, ajoute la version dans `versions`). Option « exécution seulement après
 J'ai fini » (`runBlock`). `max_attempts` essais par projet + `extra_attempts` donnés par l'admin à un étudiant ; « Nouvel essai »
-est sur la carte du projet (après être sorti de l'éditeur) et repart du code rendu. L'admin voit l'état/essais de chacun, ouvre
+(bouton dans l'éditeur `#btn-retry` et sur la carte du projet) repart du code rendu. L'admin voit l'état/essais de chacun, ouvre
 n'importe quelle version (copie), déverrouille ou donne +1 essai (page « Travail des étudiants »).
 
 ## 13. Idées d'évolutions ultérieures (ne pas les faire sans demande)

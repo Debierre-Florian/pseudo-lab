@@ -239,6 +239,23 @@ async function save() {
   } catch (e) { toast(e.message, 'err'); return false; }
 }
 
+// « Nouvel essai » depuis l'éditeur : déverrouille le travail rendu (s'il reste des essais), on repart du même code
+async function retry() {
+  const p = state.doc.project, w = state.doc.work;
+  if (!p || !w || !state.doc.id) return;
+  const left = allowedAttempts(p, w) - w.attempts;
+  if (!confirm(`Commencer un nouvel essai pour « ${p.title} » ?
+
+Tu repars de ton code déjà rendu. Il te restera ${left - 1} essai(s) après celui-ci.`)) return;
+  try {
+    const row = await state.backend.newAttempt(state.doc.id);
+    state.doc.work = pickWork(row);
+    con.clear(); clearErrLine();
+    renderInfoBar(); applyEditorRules(); updateRunButton();
+    toast('Nouvel essai : tu peux modifier ton code ✓');
+  } catch (e) { toast(e.message, 'err'); }
+}
+
 // « J'ai fini » : enregistre, puis rend le travail (verrouillé ensuite)
 async function finish() {
   const p = state.doc.project;
@@ -329,6 +346,9 @@ function applyEditorRules() {
   state.cm.setOption('readOnly', lockedWork);
   state.cm.getWrapperElement().classList.toggle('CodeMirror-readonly', lockedWork);
   $('#btn-finish').hidden = !(student && inProject && state.doc.project.submit_mode && !lockedWork);
+  const left = lockedWork ? allowedAttempts(state.doc.project, state.doc.work) - state.doc.work.attempts : 0;
+  $('#btn-retry').hidden = !(lockedWork && left > 0);
+  $('#btn-retry').textContent = `↻ Nouvel essai (${left} restant${left > 1 ? 's' : ''})`;
 }
 function updateRunButton() {
   const why = runBlock();
@@ -968,6 +988,7 @@ async function init() {
   $('#btn-stop').addEventListener('click', stop);
   $('#btn-save').addEventListener('click', save);
   $('#btn-finish').addEventListener('click', finish);
+  $('#btn-retry').addEventListener('click', retry);
   $('#p-submit').addEventListener('change', syncSubmitFields);
   $('#btn-new').addEventListener('click', () => newDoc());
   $('#btn-clear').addEventListener('click', () => { con.clear(); clearErrLine(); });

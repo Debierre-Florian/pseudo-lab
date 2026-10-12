@@ -76,6 +76,7 @@
         <button id="btn-new" class="btn">Nouveau</button>
         <button id="btn-save" class="btn">Enregistrer</button>
         <button id="btn-finish" class="btn finish" hidden title="Rendre ton travail (il sera verrouillé)">✓ J'ai fini</button>
+        <button id="btn-retry" class="btn" hidden title="Repartir de ton code rendu pour un nouvel essai">↻ Nouvel essai</button>
       </div>
       <div class="tb-group tb-run">
         <span id="run-lock" class="run-lock" hidden></span>
@@ -263,7 +264,7 @@ longueur(texte)   aleatoire(1, 6)</pre>
     </div>
     <p id="auth-why" class="muted" hidden></p>
     <label class="field" id="f-pseudo" hidden>Pseudo
-      <input id="a-pseudo" type="text" maxlength="40" autocomplete="name" placeholder="ex : NOM Florian">
+      <input id="a-pseudo" type="text" maxlength="40" autocomplete="name">
     </label>
     <label class="field">Email
       <input id="a-email" type="email" required autocomplete="email">
