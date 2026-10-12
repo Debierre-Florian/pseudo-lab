@@ -66,6 +66,9 @@ qu'une fois un projet (ou un de ses programmes) choisi. L'onglet **Aide** est r�
 n'est visible que par l'admin. Un étudiant ne peut pas renommer son travail de projet (titre et TD = ceux du projet,
 imposés aussi par la base) ; sans « programmes libres », il n'a plus « Nouveau » et ne peut enregistrer que dans un projet.
 
+Un projet peut être **masqué** (en préparation) pour tous les étudiants, ou seulement pour certains ; la page Projets
+les range par TD avec « tout afficher / tout masquer ». L'éditeur s'ouvre vide (sauf code de départ du projet).
+
 Les réglages se font dans **Admin → Réglages** (global + une case par étudiant, avec « tous / aucun » par colonne)
 et sur chaque carte de **Projets** (exécution, travail des autres ; le formulaire de création oblige à choisir).
 ⚠ Le blocage de l'exécution est fait par l'interface : le pseudo-code tourne dans le navigateur, un étudiant

@@ -178,7 +178,8 @@ save({id,title,td,code,project_id}), remove(id), setFlags(id,{published,is_templ
 getSettings(), setSettings(patch) (admin), listProjects(), getProject(id), saveProject({id?,…}) (admin), removeProject(id) (admin),
 listProjectWork(projectId), listStudents() (admin), setStudent(id, patch) (admin), setAllStudents(patch) (admin)`.
 Un programme : `{id, owner, author, title, td, code, project_id, published, is_template, created_at, updated_at}`.
-`session()` renvoie aussi `can_run, can_free, can_view_others`. Un projet : `{id, title, td, instructions, starter_code, run_enabled, share_work, created_at, updated_at}`.
+`session()` renvoie aussi `can_run, can_free, can_view_others`. Un projet : `{id, title, td, instructions, starter_code, run_enabled, share_work, visible, hidden_for[], created_at, updated_at}`.
+`setProjectsFlags(ids, patch)` (admin) : modifie plusieurs projets d'un coup (« tout afficher / tout masquer » un TD).
 Toute nouvelle fonctionnalité de données doit être ajoutée **aux deux backends** et à `schema.sql`.
 
 ## 8. Base de données et sécurité (`supabase/schema.sql`)
@@ -356,6 +357,12 @@ le bouton Retour du navigateur revienne à la page précédente ; routes `#vue` 
 permissions sont relues (`refreshPerms`) à chaque changement de page pour un étudiant ; liste « Charger… » réservée à l'admin ; `applyEditorRules()` verrouille titre/TD (travail de
 projet, ou sans programmes libres), cache « Nouveau » et désactive « Enregistrer » hors projet. Le trigger `programs_guard`
 impose le titre/TD du projet au travail d'un étudiant. L'admin garde toutes les fonctionnalités.
+
+Visibilité : `projects.visible` (décoché = en préparation, invisible pour tous les étudiants) et `projects.hidden_for uuid[]`
+(étudiants pour qui il reste invisible). RLS via `can_use_project(pid)` : lecture du projet, enregistrement dedans et
+« travail des autres ». Le formulaire impose le choix Visible/Masqué ; la page Projets range les projets par TD avec
+« tout afficher / tout masquer ». L'éditeur s'ouvre **vide** (le modèle de base ne sert plus qu'à l'admin : liste « Charger… »
+et bouton « Prendre le modèle de base » du formulaire de projet).
 
 ## 13. Idées d'évolutions ultérieures (ne pas les faire sans demande)
 
