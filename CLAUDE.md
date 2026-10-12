@@ -376,6 +376,10 @@ Rendu « J'ai fini » (option du projet) : confirmation, puis travail verrouill�
 J'ai fini » (`runBlock`). `max_attempts` essais par projet + `extra_attempts` donnés par l'admin à un étudiant ; « Nouvel essai »
 (bouton dans l'éditeur `#btn-retry` et sur la carte du projet) repart du code rendu. L'admin voit l'état/essais de chacun, ouvre
 n'importe quelle version (copie), déverrouille ou donne +1 essai (page « Travail des étudiants »).
+« Rendu définitif » (`final_at`, `finalizeWork(id)`) : l'étudiant renonce à ses essais restants. Travail **terminé** = rendu ET
+(rendu définitif OU plus d'essai) (`isDone` dans app.js, même règle dans `can_see_work` SQL et backend démo) : dans un projet
+« J'ai fini », le travail des autres n'est visible qu'une fois son propre travail terminé (et si l'admin l'autorise).
+Déverrouiller / +1 essai par l'admin remettent `final_at` à null.
 
 ## 13. Idées d'évolutions ultérieures (ne pas les faire sans demande)
 

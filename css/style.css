@@ -281,3 +281,4 @@ fieldset.choice input[type=number] { width: 64px; margin-left: 6px; font: inheri
 fieldset.choice label.off { opacity: .5; }
 .card .row select, table.list select { font-size: 13px; padding: 3px 6px; }
 .CodeMirror-readonly .CodeMirror-cursor { display: none; }
+.small-note { font-size: 12.5px; align-self: center; }

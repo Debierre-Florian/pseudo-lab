@@ -744,6 +744,26 @@ fin`);
   await as('a@x.fr');
   ok('rendu : l\'admin peut déverrouiller sans compter d\'essai', (await B.setWork(t1.id, { submitted_at: null })).attempts === 3);
 
+  // rendu définitif + travail des autres visible seulement quand son travail est terminé
+  const exam2 = await B.saveProject({ title: 'Partiel', td: 'TD7', submit_mode: true, max_attempts: 3, share_work: true });
+  await B.setStudent(alice.id, { can_view_others: true });
+  await as('bob@x.fr');
+  const b1 = await B.save({ title: 'x', td: '', code: 'bob', project_id: exam2.id });
+  await B.submitWork(b1.id);
+  await as('alice@x.fr');
+  const a1 = await B.save({ title: 'x', td: '', code: 'alice', project_id: exam2.id });
+  ok('terminé : pas encore rendu → pas de travail des autres', (await B.listProjectWork(exam2.id)).every((p) => p.owner === alice.id));
+  await B.submitWork(a1.id);
+  ok('terminé : rendu mais essais restants → toujours pas', (await B.listProjectWork(exam2.id)).every((p) => p.owner === alice.id));
+  const fin = await B.finalizeWork(a1.id);
+  ok('terminé : « Rendu définitif » enregistré', !!fin.final_at);
+  ok('terminé : après rendu définitif → travail des autres visible', (await B.listProjectWork(exam2.id)).some((p) => p.owner === bob.id));
+  await refuse('terminé : plus de nouvel essai après le rendu définitif', () => B.newAttempt(a1.id));
+  await as('a@x.fr');
+  await B.setWork(a1.id, { extra_attempts: 1, final_at: null });
+  await as('alice@x.fr');
+  ok('terminé : l\'admin peut rouvrir (+1 essai annule le rendu définitif)', (await B.newAttempt(a1.id)).submitted_at === null);
+
   await as('a@x.fr');
   await B.removeProject(pr.id);
   ok('permissions : supprimer un projet garde le travail (devient libre)', (await B.listAll()).some((p) => p.id === w.id && p.project_id === null));

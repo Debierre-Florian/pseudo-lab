@@ -88,6 +88,10 @@ export function createSupabaseBackend(cfg) {
       const { data, error } = await sb.from('programs').update({ submitted_at: new Date().toISOString() }).eq('id', id).select(SELECT).single();
       fail(error); return toProg(data);
     },
+    async finalizeWork(id) {
+      const { data, error } = await sb.from('programs').update({ final_at: new Date().toISOString() }).eq('id', id).select(SELECT).single();
+      fail(error); return toProg(data);
+    },
     async newAttempt(id) {
       const { data, error } = await sb.from('programs').update({ submitted_at: null }).eq('id', id).select(SELECT).single();
       fail(error); return toProg(data);

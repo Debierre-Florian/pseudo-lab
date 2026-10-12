@@ -90,13 +90,29 @@ language sql stable security definer set search_path = public as $$
     coalesce((select free_programs from public.settings where id = 1), true)
     and coalesce((select can_free from public.profiles where id = auth.uid()), false));
 $$;
--- « puis-je voir le travail des autres dans ce projet ? » = réglage du projet ET de mon compte
+-- 5) Rendu « J'ai fini » et essais (versions) -------------------------------
+alter table public.projects add column if not exists submit_mode      boolean not null default false; -- bouton « J'ai fini »
+alter table public.projects add column if not exists run_after_submit boolean not null default false; -- exécution seulement après « J'ai fini »
+alter table public.projects add column if not exists max_attempts     int     not null default 1;     -- nombre de rendus permis
+alter table public.programs add column if not exists submitted_at   timestamptz;                       -- rempli = rendu, donc verrouillé
+alter table public.programs add column if not exists attempts       int   not null default 0;          -- nombre de rendus déjà faits
+alter table public.programs add column if not exists extra_attempts int   not null default 0;          -- essais en plus donnés par l'admin
+alter table public.programs add column if not exists versions       jsonb not null default '[]'::jsonb; -- copie de chaque version rendue
+
+alter table public.programs add column if not exists final_at timestamptz;   -- rendu définitif (l'étudiant renonce à ses essais restants)
+
+-- « puis-je voir le travail des autres dans ce projet ? » = réglage du projet ET de mon compte,
+-- et, dans un projet « J'ai fini », seulement quand mon travail est terminé (rendu définitif ou plus d'essai)
 create or replace function public.can_see_work(pid uuid) returns boolean
 language sql stable security definer set search_path = public as $$
   select pid is not null
     and public.can_use_project(pid)
     and coalesce((select share_work from public.projects where id = pid), false)
-    and coalesce((select can_view_others from public.profiles where id = auth.uid()), false);
+    and coalesce((select can_view_others from public.profiles where id = auth.uid()), false)
+    and (not coalesce((select submit_mode from public.projects where id = pid), false)
+      or exists (select 1 from public.programs w join public.projects p on p.id = w.project_id
+                 where w.project_id = pid and w.owner = auth.uid() and w.submitted_at is not null
+                   and (w.final_at is not null or w.attempts >= p.max_attempts + w.extra_attempts)));
 $$;
 
 drop policy if exists "lecture"      on public.programs;
@@ -113,15 +129,6 @@ create policy "modification" on public.programs for update to authenticated
   with check (public.is_admin() or (owner = auth.uid() and
     (case when project_id is null then public.can_free() else public.can_use_project(project_id) end)));
 
--- 5) Rendu « J'ai fini » et essais (versions) -------------------------------
-alter table public.projects add column if not exists submit_mode      boolean not null default false; -- bouton « J'ai fini »
-alter table public.projects add column if not exists run_after_submit boolean not null default false; -- exécution seulement après « J'ai fini »
-alter table public.projects add column if not exists max_attempts     int     not null default 1;     -- nombre de rendus permis
-alter table public.programs add column if not exists submitted_at   timestamptz;                       -- rempli = rendu, donc verrouillé
-alter table public.programs add column if not exists attempts       int   not null default 0;          -- nombre de rendus déjà faits
-alter table public.programs add column if not exists extra_attempts int   not null default 0;          -- essais en plus donnés par l'admin
-alter table public.programs add column if not exists versions       jsonb not null default '[]'::jsonb; -- copie de chaque version rendue
-
 -- Garde-fou (remplace l'ancien) : un étudiant ne peut pas déplacer un programme d'un projet à l'autre,
 -- ni renommer son travail de projet, ni modifier un travail rendu ; « nouvel essai » seulement s'il en reste.
 create or replace function public.programs_guard() returns trigger
@@ -133,16 +140,25 @@ begin
   if tg_op = 'INSERT' then
     if not is_adm then
       new.published := false; new.is_template := false; new.owner := auth.uid();
-      new.submitted_at := null; new.attempts := 0; new.extra_attempts := 0; new.versions := '[]'::jsonb;
+      new.submitted_at := null; new.final_at := null; new.attempts := 0; new.extra_attempts := 0; new.versions := '[]'::jsonb;
     end if;
   else
     new.owner := old.owner;
     if not is_adm then
       new.published := old.published; new.is_template := old.is_template; new.project_id := old.project_id;
       new.attempts := old.attempts; new.extra_attempts := old.extra_attempts; new.versions := old.versions;
+      -- « Rendu définitif » : seulement sur un travail rendu, et sans retour en arrière
+      if old.final_at is null and new.final_at is not null and old.submitted_at is not null then
+        new.final_at := now();
+      else
+        new.final_at := old.final_at;
+      end if;
       if old.submitted_at is not null then
         if new.submitted_at is null then
-          -- « Nouvel essai » : seulement s'il lui en reste
+          -- « Nouvel essai » : seulement s'il lui en reste et s'il n'a pas confirmé son rendu définitif
+          if old.final_at is not null then
+            raise exception 'Tu as confirmé ton rendu définitif : demande à ton prof pour le rouvrir.';
+          end if;
           select max_attempts into allowed from public.projects where id = old.project_id;
           if old.attempts >= coalesce(allowed, 1) + old.extra_attempts then
             raise exception 'Plus d''essai disponible pour ce projet : demande à ton prof.';

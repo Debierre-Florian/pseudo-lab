@@ -1,9 +1,9 @@
 // ?v=… : numéro de version (changé par « node tools/version.mjs » avant chaque mise en ligne) pour que
 // les navigateurs ne gardent pas d'anciens fichiers en cache.
-import { makeLang, runSource, normalise, StopSignal } from './pseudo.js?v=202610121917';
-import { CONFIG } from './config.js?v=202610121917';
-import { createLocalBackend } from './backend-local.js?v=202610121917';
-const V = '?v=202610121917';
+import { makeLang, runSource, normalise, StopSignal } from './pseudo.js?v=202610121924';
+import { CONFIG } from './config.js?v=202610121924';
+import { createLocalBackend } from './backend-local.js?v=202610121924';
+const V = '?v=202610121924';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -164,7 +164,7 @@ function setDirty(v) { state.dirty = v; $('#dirty').hidden = !v; }
    =================================================================== */
 // opened = un projet ou un programme a été ouvert : c'est seulement alors qu'un étudiant peut aller dans l'éditeur
 // work = état du rendu du travail ouvert (submitted_at, attempts, extra_attempts, versions) ; null hors projet / copie
-const pickWork = (r) => (r ? { submitted_at: r.submitted_at || null, attempts: r.attempts || 0, extra_attempts: r.extra_attempts || 0, versions: r.versions || [] } : null);
+const pickWork = (r) => (r ? { id: r.id, submitted_at: r.submitted_at || null, final_at: r.final_at || null, attempts: r.attempts || 0, extra_attempts: r.extra_attempts || 0, versions: r.versions || [] } : null);
 function setDoc({ id = null, owner = null, author = null, isCopy = false, title = '', td = '', code, project = null, opened = true, work = null }) {
   state.doc = { id, owner, author, isCopy, project, opened, work: pickWork(work) };
   $('#title').value = title; $('#td').value = td;
@@ -196,9 +196,12 @@ function renderInfoBar() {
     const w = state.doc.work;
     const total = allowedAttempts(project, w);
     if (w && w.submitted_at) {
-      parts.push(parts.length ? '\n' : '', h('strong', {}, `✓ Rendu le ${fmtDate(w.submitted_at)}`),
+      const done = isDone(project, w);
+      parts.push(parts.length ? '\n' : '', h('strong', {}, done ? `🏁 Travail terminé (rendu le ${fmtDate(w.submitted_at)})` : `✓ Rendu le ${fmtDate(w.submitted_at)}`),
         ` (essai ${w.attempts}/${total}) — ton travail est verrouillé.`,
-        project.run_after_submit ? ' Tu peux maintenant l\'exécuter pour voir le résultat.' : '');
+        project.run_after_submit ? ' Tu peux maintenant l\'exécuter pour voir le résultat.' : '',
+        done && project.share_work && state.me && state.me.can_view_others !== false ? ' Tu peux voir le travail des autres depuis l\'onglet « Projets ».' : '',
+        !done ? ' Il te reste des essais : « Nouvel essai » pour repartir de ce code, ou « Rendu définitif » si tu as vraiment fini.' : '');
     } else if (!isAdmin() || owner === (state.me && state.me.id) || !author) {
       parts.push(parts.length ? '\n' : '', `Quand tu as terminé, clique sur « J'ai fini » : ton travail sera rendu et verrouillé`,
         project.run_after_submit ? ' — tu pourras l\'exécuter seulement après.' : '.',
@@ -243,6 +246,12 @@ async function save() {
 }
 
 // « Nouvel essai » depuis l'éditeur : déverrouille le travail rendu (s'il reste des essais), on repart du même code
+async function finalFromEditor() {
+  const row = await finalize(state.doc.project, { ...state.doc.work, id: state.doc.id });
+  if (!row) return;
+  state.doc.work = pickWork(row);
+  renderInfoBar(); applyEditorRules(); updateRunButton();
+}
 async function retry() {
   const p = state.doc.project, w = state.doc.work;
   if (!p || !w || !state.doc.id) return;
@@ -328,6 +337,10 @@ function runBlock() {
   return null;
 }
 const allowedAttempts = (p, w) => Math.max(1, (p && p.max_attempts) || 1) + ((w && w.extra_attempts) || 0);
+// travail terminé pour de bon = rendu ET (rendu définitif OU plus aucun essai)
+const isDone = (p, w) => !!(w && w.submitted_at && (w.final_at || w.attempts >= allowedAttempts(p, w)));
+// essais encore possibles après un rendu (0 si rendu définitif)
+const attemptsLeft = (p, w) => (w && w.submitted_at && !w.final_at ? Math.max(0, allowedAttempts(p, w) - w.attempts) : 0);
 // travail de projet rendu : verrouillé pour l'étudiant (l'admin peut toujours modifier)
 const isLockedForMe = () => !isAdmin() && !state.doc.isCopy && !!state.doc.project && !!(state.doc.work && state.doc.work.submitted_at);
 const canFree = () => isAdmin() || (!!state.me && state.settings.free_programs && state.me.can_free !== false);
@@ -350,8 +363,9 @@ function applyEditorRules() {
   state.cm.setOption('readOnly', lockedWork);
   state.cm.getWrapperElement().classList.toggle('CodeMirror-readonly', lockedWork);
   $('#btn-finish').hidden = !(student && inProject && state.doc.project.submit_mode && !lockedWork);
-  const left = lockedWork ? allowedAttempts(state.doc.project, state.doc.work) - state.doc.work.attempts : 0;
+  const left = lockedWork ? attemptsLeft(state.doc.project, state.doc.work) : 0;
   $('#btn-retry').hidden = !(lockedWork && left > 0);
+  $('#btn-final').hidden = !(lockedWork && left > 0);
   $('#btn-retry').textContent = `↻ Nouvel essai (${left} restant${left > 1 ? 's' : ''})`;
 }
 function updateRunButton() {
@@ -614,8 +628,8 @@ async function renderProjects() {
           h('button', { class: 'btn small primary', onclick: () => openMyProjectWork(pr) },
             workOf.get(pr.id) && workOf.get(pr.id).submitted_at ? 'Voir mon travail rendu' : started.has(pr.id) ? 'Ouvrir mon travail' : 'Commencer'),
           newAttemptButton(pr, workOf.get(pr.id)),
-          pr.share_work && state.me.can_view_others !== false
-            ? h('button', { class: 'btn small', onclick: () => showView('projects/' + pr.id) }, 'Voir le travail des autres') : null)))),
+          finalButton(pr, workOf.get(pr.id)),
+          othersButton(pr, workOf.get(pr.id)))))),
     ]));
   } catch (e) { body.replaceChildren(empty(e.message)); }
 }
@@ -623,13 +637,13 @@ async function renderProjects() {
 // Badge d'état du travail d'un étudiant dans un projet
 function workStatus(pr, w) {
   if (!w) return '';
+  if (pr.submit_mode && isDone(pr, w)) return h('span', { class: 'badge pub' }, `Terminé 🏁 (essai ${w.attempts}/${allowedAttempts(pr, w)})`);
   if (w.submitted_at) return h('span', { class: 'badge pub' }, pr.submit_mode ? `Rendu ✓ (essai ${w.attempts}/${allowedAttempts(pr, w)})` : 'Rendu ✓');
   return h('span', { class: 'badge pub' }, w.attempts ? `Essai ${w.attempts + 1}/${allowedAttempts(pr, w)} en cours` : 'Commencé');
 }
 // « Nouvel essai » : après un rendu, s'il reste des essais (fixés par l'admin), on repart du code rendu
 function newAttemptButton(pr, w) {
-  if (!w || !w.submitted_at) return null;
-  const left = allowedAttempts(pr, w) - w.attempts;
+  const left = attemptsLeft(pr, w);
   if (left <= 0) return null;
   return h('button', {
     class: 'btn small',
@@ -639,6 +653,31 @@ function newAttemptButton(pr, w) {
       catch (e) { toast(e.message, 'err'); }
     },
   }, `Nouvel essai (${left} restant${left > 1 ? 's' : ''})`);
+}
+
+// « Rendu définitif » : l'étudiant renonce aux essais restants (son travail devient terminé)
+function finalButton(pr, w) {
+  if (attemptsLeft(pr, w) <= 0) return null;
+  return h('button', { class: 'btn small', onclick: async () => { if (await finalize(pr, w)) renderProjects(); } }, '🏁 Rendu définitif');
+}
+async function finalize(pr, w) {
+  const left = attemptsLeft(pr, w);
+  const msg = `Confirmer ton rendu définitif pour « ${pr.title} » ?\n\nTu renonces à ${left} essai(s) restant(s) : tu ne pourras plus modifier ton travail.`
+    + (pr.share_work && state.me.can_view_others !== false ? '\n\nTu pourras ensuite voir le travail des autres.' : '');
+  if (!confirm(msg)) return false;
+  try {
+    const row = await state.backend.finalizeWork(w.id);
+    toast('Rendu définitif ✓');
+    return row;
+  } catch (e) { toast(e.message, 'err'); return false; }
+}
+// « Voir le travail des autres » : autorisé par l'admin (projet + compte) et, dans un projet « J'ai fini »,
+// seulement quand son propre travail est terminé (la base applique la même règle : can_see_work)
+function othersButton(pr, w) {
+  if (!pr.share_work || state.me.can_view_others === false) return null;
+  if (pr.submit_mode && !isDone(pr, w))
+    return h('span', { class: 'muted small-note' }, 'Travail des autres : visible quand tu auras terminé');
+  return h('button', { class: 'btn small', onclick: () => showView('projects/' + pr.id) }, 'Voir le travail des autres');
 }
 
 // Projets rangés par TD (ordre naturel : TD1, TD2… TD10), du plus ancien au plus récent dans chaque TD
@@ -743,13 +782,13 @@ async function renderProjectWork(pr) {
       h('thead', {}, h('tr', {}, cols.map((c) => h('th', {}, c)))),
       h('tbody', {}, rows.map((p) => h('tr', {},
         h('td', {}, p.author),
-        h('td', {}, p.submitted_at ? `Rendu le ${fmtDate(p.submitted_at)}` : p.attempts ? `Essai ${p.attempts + 1} en cours` : 'En cours'),
+        h('td', {}, p.final_at ? `Rendu définitif le ${fmtDate(p.final_at)}` : p.submitted_at ? `Rendu le ${fmtDate(p.submitted_at)}` : p.attempts ? `Essai ${p.attempts + 1} en cours` : 'En cours'),
         isAdmin() ? h('td', {}, `${p.attempts || 0}/${allowedAttempts(pr, p)}`) : null,
         h('td', {}, fmtDate(p.updated_at)),
         h('td', {}, h('div', { class: 'actions' },
           isAdmin() ? versionPicker(p) : null,
-          isAdmin() && p.submitted_at ? h('button', { class: 'btn small', title: 'Rouvre le travail sans compter d\'essai', onclick: () => adminSet(p, { submitted_at: null }, 'Travail déverrouillé ✓') }, 'Déverrouiller') : null,
-          isAdmin() && pr.submit_mode ? h('button', { class: 'btn small', title: 'Donne un essai de plus à cet étudiant', onclick: () => adminSet(p, { extra_attempts: (p.extra_attempts || 0) + 1 }, 'Un essai de plus ✓') }, '+1 essai') : null,
+          isAdmin() && p.submitted_at ? h('button', { class: 'btn small', title: 'Rouvre le travail sans compter d\'essai', onclick: () => adminSet(p, { submitted_at: null, final_at: null }, 'Travail déverrouillé ✓') }, 'Déverrouiller') : null,
+          isAdmin() && pr.submit_mode ? h('button', { class: 'btn small', title: 'Donne un essai de plus à cet étudiant', onclick: () => adminSet(p, { extra_attempts: (p.extra_attempts || 0) + 1, final_at: null }, 'Un essai de plus ✓') }, '+1 essai') : null,
           h('button', { class: 'btn small', onclick: () => openProgram(p) }, isAdmin() || p.owner === state.me.id ? 'Ouvrir' : 'Ouvrir une copie')))))))),
     missing || '');
   } catch (e) { body.replaceChildren(back, title, empty(e.message)); }
@@ -975,7 +1014,7 @@ async function init() {
   try {
     if (useSupabase) {
       await loadScript('vendor/supabase.js');
-      const { createSupabaseBackend } = await import('./backend-supabase.js?v=202610121917');
+      const { createSupabaseBackend } = await import('./backend-supabase.js?v=202610121924');
       state.backend = createSupabaseBackend(CONFIG);
     }
   } catch (e) { toast('Supabase injoignable, passage en mode démo.', 'err'); }
@@ -994,6 +1033,7 @@ async function init() {
   $('#btn-save').addEventListener('click', save);
   $('#btn-finish').addEventListener('click', finish);
   $('#btn-retry').addEventListener('click', retry);
+  $('#btn-final').addEventListener('click', finalFromEditor);
   $('#p-submit').addEventListener('change', syncSubmitFields);
   $('#btn-new').addEventListener('click', () => newDoc());
   $('#btn-clear').addEventListener('click', () => { con.clear(); clearErrLine(); });

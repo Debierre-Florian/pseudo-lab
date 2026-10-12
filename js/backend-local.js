@@ -16,7 +16,7 @@ export function createLocalBackend() {
   const projs = () => store.get('pl_projects', []).map((p) => ({ visible: true, hidden_for: [], submit_mode: false, run_after_submit: false, max_attempts: 1, ...p }));
   const settings = () => ({ run_enabled: true, free_programs: true, ...store.get('pl_settings', {}) });
   const publicUser = (u) => (u ? { id: u.id, email: u.email, pseudo: u.pseudo, role: u.role, can_run: u.can_run, can_free: u.can_free, can_view_others: u.can_view_others, run_unlimited: !!u.run_unlimited } : null);
-  const WORK = { project_id: null, submitted_at: null, attempts: 0, extra_attempts: 0, versions: [] };
+  const WORK = { project_id: null, submitted_at: null, final_at: null, attempts: 0, extra_attempts: 0, versions: [] };
   const withAuthor = (p) => ({ ...WORK, ...p, author: (users().find((u) => u.id === p.owner) || {}).pseudo || '?' });
   const me = () => users().find((u) => u.id === store.get('pl_session', null));
   const need = () => { const u = me(); if (!u) throw new Error('Connecte-toi pour faire ça.'); return u; };
@@ -25,9 +25,13 @@ export function createLocalBackend() {
   const canFree = (u) => u.role === 'admin' || (settings().free_programs && u.can_free);
   // comme can_use_project() : projet visible ET l'étudiant n'est pas dans la liste des masqués
   const canUse = (u, p) => !!p && (u.role === 'admin' || (p.visible && !p.hidden_for.includes(u.id)));
+  // travail terminé = rendu ET (rendu définitif OU plus d'essai)
+  const isDone = (pr, w) => !!w && !!w.submitted_at && (!!w.final_at || (w.attempts || 0) >= ((pr && pr.max_attempts) || 1) + (w.extra_attempts || 0));
   const canSeeWork = (u, pid) => {
     const p = pid && projs().find((x) => x.id === pid);
-    return canUse(u, p) && p.share_work && u.can_view_others;
+    if (!(canUse(u, p) && p.share_work && u.can_view_others)) return false;
+    // projet « J'ai fini » : seulement quand son propre travail est terminé (comme can_see_work en SQL)
+    return !p.submit_mode || isDone(p, progs().find((w) => w.project_id === pid && w.owner === u.id));
   };
   const canSaveIn = (u, pid) => (pid ? canUse(u, projs().find((x) => x.id === pid)) : canFree(u));
   // comme le trigger programs_guard : un étudiant garde le titre et le TD du projet
@@ -112,10 +116,21 @@ export function createLocalBackend() {
       }
       return withAuthor(p);
     },
+    async finalizeWork(id) {   // « Rendu définitif » : renonce aux essais restants
+      const u = need();
+      const { list, p } = ownWork(u, id);
+      if (p.submitted_at && !p.final_at) {
+        p.final_at = new Date().toISOString();
+        store.set('pl_programs', list);
+      }
+      return withAuthor(p);
+    },
     async newAttempt(id) {
       const u = need();
       const { list, p } = ownWork(u, id);
       const pr = projs().find((x) => x.id === p.project_id);
+      if (u.role !== 'admin' && p.final_at)
+        throw new Error('Tu as confirmé ton rendu définitif : demande à ton prof pour le rouvrir.');
       if (u.role !== 'admin' && p.attempts >= ((pr && pr.max_attempts) || 1) + p.extra_attempts)
         throw new Error("Plus d'essai disponible pour ce projet : demande à ton prof.");
       Object.assign(p, { submitted_at: null, updated_at: new Date().toISOString() });

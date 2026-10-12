@@ -6,7 +6,7 @@
 <title>Pseudo-Lab — exécute ton pseudo-code</title>
 <meta name="description" content="Écris ton pseudo-code, exécute-le en ligne et partage-le avec ta promo.">
 <link rel="stylesheet" href="vendor/codemirror/codemirror.css">
-<link rel="stylesheet" href="css/style.css?v=202610121917">
+<link rel="stylesheet" href="css/style.css?v=202610121924">
 </head>
 <body>
 
@@ -77,6 +77,7 @@
         <button id="btn-save" class="btn">Enregistrer</button>
         <button id="btn-finish" class="btn finish" hidden title="Rendre ton travail (il sera verrouillé)">✓ J'ai fini</button>
         <button id="btn-retry" class="btn" hidden title="Repartir de ton code rendu pour un nouvel essai">↻ Nouvel essai</button>
+        <button id="btn-final" class="btn" hidden title="Renoncer aux essais restants : ton rendu devient définitif">🏁 Rendu définitif</button>
       </div>
       <div class="tb-group tb-run">
         <span id="run-lock" class="run-lock" hidden></span>
@@ -334,6 +335,6 @@ longueur(texte)   aleatoire(1, 6)</pre>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
 <script src="vendor/codemirror/codemirror.js"></script>
-<script type="module" src="js/app.js?v=202610121917"></script>
+<script type="module" src="js/app.js?v=202610121924"></script>
 </body>
 </html>
