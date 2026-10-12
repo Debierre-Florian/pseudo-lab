@@ -15,6 +15,7 @@ export function createSupabaseBackend(cfg) {
       can_run: !data || data.can_run !== false,
       can_free: !data || data.can_free !== false,
       can_view_others: !data || data.can_view_others !== false,
+      run_unlimited: !!(data && data.run_unlimited),
     };
   }
   const fail = (error) => { if (error) throw new Error(translate(error.message)); };
@@ -142,7 +143,7 @@ export function createSupabaseBackend(cfg) {
     async listStudents() {
       const { data, error } = await sb.from('profiles').select('*').neq('role', 'admin').order('pseudo');
       fail(error);
-      return data.map((p) => ({ ...p, can_run: p.can_run !== false, can_free: p.can_free !== false, can_view_others: p.can_view_others !== false }));
+      return data.map((p) => ({ ...p, can_run: p.can_run !== false, can_free: p.can_free !== false, can_view_others: p.can_view_others !== false, run_unlimited: !!p.run_unlimited }));
     },
     async setStudent(id, patch) {
       const { error } = await sb.from('profiles').update(patch).eq('id', id);

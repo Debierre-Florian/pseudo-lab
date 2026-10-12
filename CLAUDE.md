@@ -178,7 +178,8 @@ save({id,title,td,code,project_id}), remove(id), setFlags(id,{published,is_templ
 getSettings(), setSettings(patch) (admin), listProjects(), getProject(id), saveProject({id?,…}) (admin), removeProject(id) (admin),
 listProjectWork(projectId), listStudents() (admin), setStudent(id, patch) (admin), setAllStudents(patch) (admin)`.
 Un programme : `{id, owner, author, title, td, code, project_id, published, is_template, created_at, updated_at}`.
-`session()` renvoie aussi `can_run, can_free, can_view_others`. Un projet : `{id, title, td, instructions, starter_code, run_enabled, share_work, visible, hidden_for[], created_at, updated_at}`.
+`session()` renvoie aussi `can_run, can_free, can_view_others, run_unlimited` (« exécution illimitée » : l'étudiant ignore tous
+les blocages d'exécution — global, compte, projet, « après J'ai fini » ; décochée par défaut, réglée dans Admin → Réglages). Un projet : `{id, title, td, instructions, starter_code, run_enabled, share_work, visible, hidden_for[], created_at, updated_at}`.
 `setProjectsFlags(ids, patch)` (admin) : modifie plusieurs projets d'un coup (« tout afficher / tout masquer » un TD).
 Rendu : `submitWork(id)` (« J'ai fini »), `newAttempt(id)` (nouvel essai s'il en reste), `setWork(id, patch)` (admin : déverrouiller
 `{submitted_at:null}`, `{extra_attempts:n}`). Projet : `submit_mode, run_after_submit, max_attempts` ; programme : `submitted_at,

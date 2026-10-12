@@ -108,6 +108,7 @@ create trigger programs_guard before insert or update on public.programs
 alter table public.profiles add column if not exists can_run         boolean not null default true;  -- peut exécuter
 alter table public.profiles add column if not exists can_free        boolean not null default true;  -- peut enregistrer hors projets
 alter table public.profiles add column if not exists can_view_others boolean not null default true;  -- peut voir le travail des autres (si le projet le permet)
+alter table public.profiles add column if not exists run_unlimited   boolean not null default false; -- exécution illimitée : ignore tous les blocages d'exécution
 
 drop policy if exists "profils modifiables par l'admin" on public.profiles;
 create policy "profils modifiables par l'admin" on public.profiles for update to authenticated

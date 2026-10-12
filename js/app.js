@@ -1,9 +1,9 @@
 // ?v=… : numéro de version (changé par « node tools/version.mjs » avant chaque mise en ligne) pour que
 // les navigateurs ne gardent pas d'anciens fichiers en cache.
-import { makeLang, runSource, normalise, StopSignal } from './pseudo.js?v=202610121823';
-import { CONFIG } from './config.js?v=202610121823';
-import { createLocalBackend } from './backend-local.js?v=202610121823';
-const V = '?v=202610121823';
+import { makeLang, runSource, normalise, StopSignal } from './pseudo.js?v=202610121917';
+import { CONFIG } from './config.js?v=202610121917';
+import { createLocalBackend } from './backend-local.js?v=202610121917';
+const V = '?v=202610121917';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -318,6 +318,7 @@ function stop() {
 const isAdmin = () => !!(state.me && state.me.role === 'admin');
 function runBlock() {
   if (isAdmin()) return null;
+  if (state.me && state.me.run_unlimited) return null;   // « exécution illimitée » choisie par l'admin : ignore tous les blocages
   if (!state.settings.run_enabled) return 'L\'exécution est désactivée pour tout le monde par ton prof.';
   if (state.me && state.me.can_run === false) return 'Ton prof a désactivé l\'exécution pour ton compte.';
   const p = state.doc.project;
@@ -544,7 +545,8 @@ function permsPanel(students) {
       },
     }),
     h('span', {}, h('strong', {}, label), ' — ', help));
-  const cols = [['can_run', 'Exécution'], ['can_free', 'Programmes libres'], ['can_view_others', 'Voir le travail des autres']];
+  const cols = [['can_run', 'Exécution'], ['run_unlimited', 'Exécution illimitée'], ['can_free', 'Programmes libres'], ['can_view_others', 'Voir le travail des autres']];
+  const isOn = (s, k) => (k === 'run_unlimited' ? !!s[k] : s[k] !== false);   // « illimitée » est décochée par défaut
   const boxes = new Map(cols.map(([k]) => [k, []]));
   const setAll = async (k, v) => {
     try {
@@ -561,7 +563,7 @@ function permsPanel(students) {
         h('button', { class: 'link', 'aria-label': `${label} : décocher pour tous`, onclick: () => setAll(k, false) }, 'aucun')))))),
     h('tbody', {}, students.map((s) => h('tr', {}, h('td', {}, s.pseudo), cols.map(([k, label]) => {
       const b = h('input', {
-        type: 'checkbox', checked: s[k] !== false, 'aria-label': `${label} pour ${s.pseudo}`,
+        type: 'checkbox', checked: isOn(s, k), 'aria-label': `${label} pour ${s.pseudo}`,
         onchange: async () => {
           try { await state.backend.setStudent(s.id, { [k]: b.checked }); s[k] = b.checked; toast('Mis à jour ✓'); }
           catch (err) { b.checked = !b.checked; toast(err.message, 'err'); }
@@ -572,7 +574,7 @@ function permsPanel(students) {
     }))))));
   return h('div', { class: 'panel' },
     h('h2', {}, 'Réglages'),
-    h('p', { class: 'lead' }, 'Une permission ne marche que si tout est coché : le réglage global ET celui de l\'étudiant (ET celui du projet pour l\'exécution et le travail des autres). Toi, l\'admin, tu peux toujours tout faire.'),
+    h('p', { class: 'lead' }, 'Une permission ne marche que si tout est coché : le réglage global ET celui de l\'étudiant (ET celui du projet pour l\'exécution et le travail des autres). Exception : « Exécution illimitée » laisse cet étudiant exécuter partout, même quand l\'exécution est coupée ou réservée à l\'après « J\'ai fini ». Toi, l\'admin, tu peux toujours tout faire.'),
     h('div', { class: 'switches' },
       globalSwitch('run_enabled', 'Exécution pour tous', 'décoché : plus aucun étudiant ne peut exécuter.'),
       globalSwitch('free_programs', 'Programmes libres pour tous', 'décoché : les étudiants ne peuvent enregistrer que dans tes projets (ils peuvent toujours ouvrir leurs anciens programmes).')),
@@ -973,7 +975,7 @@ async function init() {
   try {
     if (useSupabase) {
       await loadScript('vendor/supabase.js');
-      const { createSupabaseBackend } = await import('./backend-supabase.js?v=202610121823');
+      const { createSupabaseBackend } = await import('./backend-supabase.js?v=202610121917');
       state.backend = createSupabaseBackend(CONFIG);
     }
   } catch (e) { toast('Supabase injoignable, passage en mode démo.', 'err'); }

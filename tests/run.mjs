@@ -703,6 +703,11 @@ fin`);
   await as('a@x.fr');
   await B.setAllStudents({ can_run: false });
   ok('permissions : réglage pour tous les étudiants', (await B.listStudents()).every((s) => s.can_run === false));
+  ok('permissions : « exécution illimitée » décochée par défaut', (await B.listStudents()).every((s) => s.run_unlimited === false));
+  await B.setStudent(bob.id, { run_unlimited: true });
+  await as('bob@x.fr');
+  ok('permissions : « exécution illimitée » renvoyée par session()', (await B.session()).run_unlimited === true);
+  await as('a@x.fr');
   // visibilité : projet masqué (en préparation) ou masqué pour certains étudiants
   const prep = await B.saveProject({ title: 'TD5 ex1', td: 'TD5', visible: false });
   const ex2 = await B.saveProject({ title: 'TD5 ex2', td: 'TD5', visible: true, hidden_for: [alice.id] });

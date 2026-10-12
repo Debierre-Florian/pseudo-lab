@@ -8,14 +8,14 @@ const store = {
   set(k, v) { mem.set(k, v); try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* navigation privée : on garde en mémoire */ } },
 };
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2));
-const PERMS = { can_run: true, can_free: true, can_view_others: true };
+const PERMS = { can_run: true, can_free: true, can_view_others: true, run_unlimited: false };
 
 export function createLocalBackend() {
   const users = () => store.get('pl_users', []).map((u) => ({ ...PERMS, ...u }));
   const progs = () => store.get('pl_programs', []);
   const projs = () => store.get('pl_projects', []).map((p) => ({ visible: true, hidden_for: [], submit_mode: false, run_after_submit: false, max_attempts: 1, ...p }));
   const settings = () => ({ run_enabled: true, free_programs: true, ...store.get('pl_settings', {}) });
-  const publicUser = (u) => (u ? { id: u.id, email: u.email, pseudo: u.pseudo, role: u.role, can_run: u.can_run, can_free: u.can_free, can_view_others: u.can_view_others } : null);
+  const publicUser = (u) => (u ? { id: u.id, email: u.email, pseudo: u.pseudo, role: u.role, can_run: u.can_run, can_free: u.can_free, can_view_others: u.can_view_others, run_unlimited: !!u.run_unlimited } : null);
   const WORK = { project_id: null, submitted_at: null, attempts: 0, extra_attempts: 0, versions: [] };
   const withAuthor = (p) => ({ ...WORK, ...p, author: (users().find((u) => u.id === p.owner) || {}).pseudo || '?' });
   const me = () => users().find((u) => u.id === store.get('pl_session', null));
