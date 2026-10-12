@@ -380,6 +380,10 @@ n'importe quelle version (copie), déverrouille ou donne +1 essai (page « Trava
 (rendu définitif OU plus d'essai) (`isDone` dans app.js, même règle dans `can_see_work` SQL et backend démo) : dans un projet
 « J'ai fini », le travail des autres n'est visible qu'une fois son propre travail terminé (et si l'admin l'autorise).
 Déverrouiller / +1 essai par l'admin remettent `final_at` à null.
+Suppression : `settings.delete_project_work` (décoché par défaut, Admin → Réglages). Sans lui, un étudiant ne peut pas
+supprimer son **travail de projet** (sinon : supprimer puis recommencer = essais/exécutions en boucle) ; ses programmes libres
+restent supprimables. Règle SQL « suppression » ; `remove()` Supabase vérifie qu'une ligne a bien été supprimée (la RLS ne renvoie
+pas d'erreur sinon) ; `canDelete(p)` cache le bouton dans « Mes programmes ».
 
 ## 13. Idées d'évolutions ultérieures (ne pas les faire sans demande)
 

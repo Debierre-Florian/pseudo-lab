@@ -764,6 +764,20 @@ fin`);
   await as('alice@x.fr');
   ok('terminé : l\'admin peut rouvrir (+1 essai annule le rendu définitif)', (await B.newAttempt(a1.id)).submitted_at === null);
 
+  // suppression : travail de projet protégé (sinon supprimer = retrouver des essais), programmes libres supprimables
+  await refuse('suppression : un étudiant ne peut pas supprimer son travail de projet (par défaut)', () => B.remove(a1.id));
+  await as('bob@x.fr');
+  const libre = await B.save({ title: 'brouillon', td: '', code: '' });
+  await B.remove(libre.id);
+  ok('suppression : un programme libre reste supprimable', !(await B.listMine()).some((p) => p.id === libre.id));
+  await as('a@x.fr');
+  await B.setSettings({ delete_project_work: true });
+  await as('alice@x.fr');
+  await B.remove(a1.id);
+  ok('suppression : permise quand l\'admin coche l\'option', !(await B.listMine()).some((p) => p.id === a1.id));
+  await as('a@x.fr');
+  await B.setSettings({ delete_project_work: false });
+
   await as('a@x.fr');
   await B.removeProject(pr.id);
   ok('permissions : supprimer un projet garde le travail (devient libre)', (await B.listAll()).some((p) => p.id === w.id && p.project_id === null));

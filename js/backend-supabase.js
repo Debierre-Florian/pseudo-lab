@@ -80,8 +80,10 @@ export function createSupabaseBackend(cfg) {
       fail(error); return toProg(data);
     },
     async remove(id) {
-      const { error } = await sb.from('programs').delete().eq('id', id);
+      // si la règle de la base refuse, Supabase ne renvoie pas d'erreur : 0 ligne supprimée
+      const { data, error } = await sb.from('programs').delete().eq('id', id).select('id');
       fail(error);
+      if (!data || !data.length) throw new Error("Suppression refusée : ton prof n'autorise pas la suppression d'un travail de projet.");
     },
     // « J'ai fini » / nouvel essai : le trigger programs_guard compte les essais et garde les versions
     async submitWork(id) {
@@ -107,9 +109,9 @@ export function createSupabaseBackend(cfg) {
 
     // ----- réglages globaux -----
     async getSettings() {
-      const { data, error } = await sb.from('settings').select('run_enabled, free_programs').eq('id', 1).maybeSingle();
-      if (error || !data) return { run_enabled: true, free_programs: true };   // migration pas encore lancée
-      return data;
+      const { data, error } = await sb.from('settings').select('*').eq('id', 1).maybeSingle();
+      if (error || !data) return { run_enabled: true, free_programs: true, delete_project_work: false };   // migration pas encore lancée
+      return { delete_project_work: false, ...data };
     },
     async setSettings(patch) {
       const { error } = await sb.from('settings').update(patch).eq('id', 1);

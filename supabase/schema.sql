@@ -133,6 +133,7 @@ create table if not exists public.settings (
   free_programs boolean not null default true,   -- programmes libres (hors projets) autorisés
   updated_at    timestamptz not null default now()
 );
+alter table public.settings add column if not exists delete_project_work boolean not null default false; -- les étudiants peuvent supprimer leur travail de projet
 insert into public.settings (id) values (1) on conflict (id) do nothing;
 alter table public.settings enable row level security;
 drop policy if exists "reglages lisibles" on public.settings;
@@ -223,6 +224,12 @@ create policy "lecture" on public.programs for select to authenticated
 create policy "creation" on public.programs for insert to authenticated
   with check (public.is_admin() or (owner = auth.uid() and
     (case when project_id is null then public.can_free() else public.can_use_project(project_id) end)));
+-- suppression : un étudiant supprime ses programmes libres ; son travail de projet seulement si l'admin l'autorise
+-- (sinon il pourrait supprimer puis recommencer pour retrouver des essais)
+drop policy if exists "suppression" on public.programs;
+create policy "suppression" on public.programs for delete to authenticated
+  using (public.is_admin() or (owner = auth.uid() and
+    (project_id is null or coalesce((select delete_project_work from public.settings where id = 1), false))));
 create policy "modification" on public.programs for update to authenticated
   using (owner = auth.uid() or public.is_admin())
   with check (public.is_admin() or (owner = auth.uid() and

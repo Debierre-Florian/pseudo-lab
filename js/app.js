@@ -1,9 +1,9 @@
 // ?v=… : numéro de version (changé par « node tools/version.mjs » avant chaque mise en ligne) pour que
 // les navigateurs ne gardent pas d'anciens fichiers en cache.
-import { makeLang, runSource, normalise, StopSignal } from './pseudo.js?v=202610121924';
-import { CONFIG } from './config.js?v=202610121924';
-import { createLocalBackend } from './backend-local.js?v=202610121924';
-const V = '?v=202610121924';
+import { makeLang, runSource, normalise, StopSignal } from './pseudo.js?v=202610121935';
+import { CONFIG } from './config.js?v=202610121935';
+import { createLocalBackend } from './backend-local.js?v=202610121935';
+const V = '?v=202610121935';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -30,7 +30,7 @@ const pref = {
 const state = {
   lang: null, langJson: null, backend: null, me: null, cm: null,
   modele: '', examples: [], templates: [],
-  settings: { run_enabled: true, free_programs: true }, projects: [],
+  settings: { run_enabled: true, free_programs: true, delete_project_work: false }, projects: [],
   doc: { id: null, owner: null, author: null, isCopy: false, project: null, opened: false },
   dirty: false, running: false, interp: null, errLine: null, view: 'editor',
 };
@@ -469,11 +469,13 @@ async function renderMine() {
         h('td', {}, p.published ? h('span', { class: 'badge pub' }, 'Partagé') : '', ' ', p.is_template ? h('span', { class: 'badge tpl' }, 'Modèle') : ''),
         h('td', {}, h('div', { class: 'actions' },
           h('button', { class: 'btn small', onclick: () => openProgram(p) }, 'Ouvrir'),
-          h('button', { class: 'btn small danger', onclick: () => removeProgram(p, renderMine) }, 'Supprimer'))),
+          canDelete(p) ? h('button', { class: 'btn small danger', onclick: () => removeProgram(p, renderMine) }, 'Supprimer') : null)),
       ))))));
   } catch (e) { body.replaceChildren(h('div', { class: 'empty' }, e.message)); }
 }
 
+// un étudiant ne supprime son travail de projet que si l'admin l'autorise (la base applique la même règle)
+const canDelete = (p) => isAdmin() || !p.project_id || !!state.settings.delete_project_work;
 async function removeProgram(p, after) {
   if (!confirm(`Supprimer « ${p.title} » ? Cette action est définitive.`)) return;
   try {
@@ -591,7 +593,8 @@ function permsPanel(students) {
     h('p', { class: 'lead' }, 'Une permission ne marche que si tout est coché : le réglage global ET celui de l\'étudiant (ET celui du projet pour l\'exécution et le travail des autres). Exception : « Exécution illimitée » laisse cet étudiant exécuter partout, même quand l\'exécution est coupée ou réservée à l\'après « J\'ai fini ». Toi, l\'admin, tu peux toujours tout faire.'),
     h('div', { class: 'switches' },
       globalSwitch('run_enabled', 'Exécution pour tous', 'décoché : plus aucun étudiant ne peut exécuter.'),
-      globalSwitch('free_programs', 'Programmes libres pour tous', 'décoché : les étudiants ne peuvent enregistrer que dans tes projets (ils peuvent toujours ouvrir leurs anciens programmes).')),
+      globalSwitch('free_programs', 'Programmes libres pour tous', 'décoché : les étudiants ne peuvent enregistrer que dans tes projets (ils peuvent toujours ouvrir leurs anciens programmes).'),
+      globalSwitch('delete_project_work', 'Suppression du travail de projet', "coché : les étudiants peuvent supprimer leur travail dans un projet (attention : ils pourraient le supprimer pour recommencer et retrouver des essais). Leurs programmes libres restent toujours supprimables.")),
     students.length ? table : h('div', { class: 'empty' }, 'Aucun étudiant inscrit pour l\'instant.'));
 }
 
@@ -1014,7 +1017,7 @@ async function init() {
   try {
     if (useSupabase) {
       await loadScript('vendor/supabase.js');
-      const { createSupabaseBackend } = await import('./backend-supabase.js?v=202610121924');
+      const { createSupabaseBackend } = await import('./backend-supabase.js?v=202610121935');
       state.backend = createSupabaseBackend(CONFIG);
     }
   } catch (e) { toast('Supabase injoignable, passage en mode démo.', 'err'); }

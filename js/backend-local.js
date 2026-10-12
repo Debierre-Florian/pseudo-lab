@@ -14,7 +14,7 @@ export function createLocalBackend() {
   const users = () => store.get('pl_users', []).map((u) => ({ ...PERMS, ...u }));
   const progs = () => store.get('pl_programs', []);
   const projs = () => store.get('pl_projects', []).map((p) => ({ visible: true, hidden_for: [], submit_mode: false, run_after_submit: false, max_attempts: 1, ...p }));
-  const settings = () => ({ run_enabled: true, free_programs: true, ...store.get('pl_settings', {}) });
+  const settings = () => ({ run_enabled: true, free_programs: true, delete_project_work: false, ...store.get('pl_settings', {}) });
   const publicUser = (u) => (u ? { id: u.id, email: u.email, pseudo: u.pseudo, role: u.role, can_run: u.can_run, can_free: u.can_free, can_view_others: u.can_view_others, run_unlimited: !!u.run_unlimited } : null);
   const WORK = { project_id: null, submitted_at: null, final_at: null, attempts: 0, extra_attempts: 0, versions: [] };
   const withAuthor = (p) => ({ ...WORK, ...p, author: (users().find((u) => u.id === p.owner) || {}).pseudo || '?' });
@@ -102,6 +102,9 @@ export function createLocalBackend() {
       const p = progs().find((x) => x.id === id);
       if (!p) return;
       if (p.owner !== u.id && u.role !== 'admin') throw new Error('Ce programme ne t\'appartient pas.');
+      // comme la règle « suppression » en SQL : sinon un étudiant supprimerait son travail pour retrouver des essais
+      if (u.role !== 'admin' && p.project_id && !settings().delete_project_work)
+        throw new Error('Ton prof n\'autorise pas la suppression d\'un travail de projet.');
       store.set('pl_programs', progs().filter((x) => x.id !== id));
     },
     async submitWork(id) {
