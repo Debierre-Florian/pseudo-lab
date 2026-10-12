@@ -13,7 +13,7 @@ const PERMS = { can_run: true, can_free: true, can_view_others: true };
 export function createLocalBackend() {
   const users = () => store.get('pl_users', []).map((u) => ({ ...PERMS, ...u }));
   const progs = () => store.get('pl_programs', []);
-  const projs = () => store.get('pl_projects', []);
+  const projs = () => store.get('pl_projects', []).map((p) => ({ visible: true, hidden_for: [], ...p }));
   const settings = () => ({ run_enabled: true, free_programs: true, ...store.get('pl_settings', {}) });
   const publicUser = (u) => (u ? { id: u.id, email: u.email, pseudo: u.pseudo, role: u.role, can_run: u.can_run, can_free: u.can_free, can_view_others: u.can_view_others } : null);
   const withAuthor = (p) => ({ project_id: null, ...p, author: (users().find((u) => u.id === p.owner) || {}).pseudo || '?' });
@@ -22,10 +22,13 @@ export function createLocalBackend() {
   const needAdmin = () => { const u = need(); if (u.role !== 'admin') throw new Error('Réservé à l\'admin.'); return u; };
   const byDate = (a, b) => (a.updated_at < b.updated_at ? 1 : -1);
   const canFree = (u) => u.role === 'admin' || (settings().free_programs && u.can_free);
+  // comme can_use_project() : projet visible ET l'étudiant n'est pas dans la liste des masqués
+  const canUse = (u, p) => !!p && (u.role === 'admin' || (p.visible && !p.hidden_for.includes(u.id)));
   const canSeeWork = (u, pid) => {
     const p = pid && projs().find((x) => x.id === pid);
-    return !!p && p.share_work && u.can_view_others;
+    return canUse(u, p) && p.share_work && u.can_view_others;
   };
+  const canSaveIn = (u, pid) => (pid ? canUse(u, projs().find((x) => x.id === pid)) : canFree(u));
   // comme le trigger programs_guard : un étudiant garde le titre et le TD du projet
   const projectNames = (u, pid, title, td) => {
     const pr = u.role !== 'admin' && pid && projs().find((x) => x.id === pid);
@@ -67,12 +70,12 @@ export function createLocalBackend() {
         const p = list.find((x) => x.id === id);
         if (!p) throw new Error('Programme introuvable.');
         if (p.owner !== u.id && u.role !== 'admin') throw new Error('Ce programme ne t\'appartient pas.');
-        if (u.role !== 'admin' && !p.project_id && !canFree(u)) throw new Error(REFUS_LIBRE);
+        if (u.role !== 'admin' && !canSaveIn(u, p.project_id)) throw new Error(REFUS_LIBRE);
         Object.assign(p, projectNames(u, p.project_id, title, td), { code, updated_at: now });
         store.set('pl_programs', list);
         return withAuthor(p);
       }
-      if (u.role !== 'admin' && !project_id && !canFree(u)) throw new Error(REFUS_LIBRE);
+      if (u.role !== 'admin' && !canSaveIn(u, project_id)) throw new Error(REFUS_LIBRE);
       if (project_id && list.some((x) => x.owner === u.id && x.project_id === project_id))
         throw new Error('Tu as déjà un travail dans ce projet : ouvre-le depuis l\'onglet Projets.');
       const p = { id: uid(), owner: u.id, ...projectNames(u, project_id, title, td), code, project_id, published: false, is_template: false, created_at: now, updated_at: now };
@@ -99,8 +102,8 @@ export function createLocalBackend() {
     async setSettings(patch) { needAdmin(); store.set('pl_settings', { ...settings(), ...patch }); },
 
     // ----- projets -----
-    async listProjects() { need(); return projs().slice().sort((a, b) => (a.created_at < b.created_at ? 1 : -1)); },
-    async getProject(id) { need(); return projs().find((p) => p.id === id) || null; },
+    async listProjects() { const u = need(); return projs().filter((p) => canUse(u, p)).sort((a, b) => (a.created_at < b.created_at ? 1 : -1)); },
+    async getProject(id) { const u = need(); const p = projs().find((x) => x.id === id); return canUse(u, p) ? p : null; },
     async saveProject({ id, ...fields }) {
       needAdmin();
       const list = projs();
@@ -112,9 +115,13 @@ export function createLocalBackend() {
         store.set('pl_projects', list);
         return p;
       }
-      const p = { title: 'Projet', td: '', instructions: '', starter_code: '', run_enabled: true, share_work: false, ...fields, id: uid(), created_at: now, updated_at: now };
+      const p = { title: 'Projet', td: '', instructions: '', starter_code: '', run_enabled: true, share_work: false, visible: true, hidden_for: [], ...fields, id: uid(), created_at: now, updated_at: now };
       store.set('pl_projects', [...list, p]);
       return p;
+    },
+    async setProjectsFlags(ids, patch) {
+      needAdmin();
+      store.set('pl_projects', projs().map((p) => (ids.includes(p.id) ? { ...p, ...patch } : p)));
     },
     async removeProject(id) {
       needAdmin();

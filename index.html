@@ -306,6 +306,15 @@ longueur(texte)   aleatoire(1, 6)</pre>
       <label><input type="radio" name="p-share" value="1" required> Oui</label>
       <label><input type="radio" name="p-share" value="0"> Non</label>
     </fieldset>
+    <fieldset class="choice">
+      <legend>Visibilité pour les étudiants</legend>
+      <label><input type="radio" name="p-visible" value="1" required> Visible</label>
+      <label><input type="radio" name="p-visible" value="0"> Masqué (en préparation)</label>
+    </fieldset>
+    <details class="hidden-for">
+      <summary>Masquer pour certains étudiants seulement <span id="p-hidden-count" class="muted"></span></summary>
+      <div id="p-students" class="student-checks"></div>
+    </details>
     <p id="project-msg" class="auth-msg" role="alert" hidden></p>
     <div class="dialog-actions">
       <button type="button" id="project-cancel" class="btn">Annuler</button>

@@ -192,7 +192,7 @@ function renderInfoBar() {
 }
 const confirmDiscard = () => !state.dirty || confirm('Tu as des modifications non enregistrées. Les abandonner ?');
 
-async function newDoc(code = state.modele, title = '', td = '') {
+async function newDoc(code = '', title = '', td = '') {
   if (!canFree()) return toast('Ton prof a limité le travail aux projets : ouvre un projet dans l\'onglet « Projets ».', 'err');
   if (!confirmDiscard()) return;
   setDoc({ title, td, code });
@@ -516,7 +516,7 @@ const empty = (msg) => h('div', { class: 'empty' }, msg);
 async function renderProjects() {
   const body = $('#projects-body');
   $('#projects-lead').textContent = isAdmin()
-    ? 'Crée des exercices pour la promo. Chaque étudiant y fait son propre travail ; tu choisis pour chaque projet si l\'exécution est permise et si les étudiants voient le travail des autres.'
+    ? 'Crée des exercices pour la promo, rangés par TD. Un projet masqué reste invisible pour les étudiants : prépare-le, puis rends-le visible quand tu veux (un par un ou tout le TD d\'un coup).'
     : 'Les exercices donnés par ton prof. Choisis un projet pour ouvrir l\'éditeur et y faire ton travail : il est enregistré à ton nom dans ce projet.';
   if (!state.me) return needLogin(body, 'Connecte-toi pour voir les projets de ton prof.');
   body.textContent = 'Chargement…';
@@ -527,44 +527,78 @@ async function renderProjects() {
     const mine = await state.backend.listMine();
     const started = new Set(mine.filter((p) => p.project_id).map((p) => p.project_id));
     if (!list.length) return body.replaceChildren(empty('Aucun projet pour l\'instant.'));
-    body.replaceChildren(h('div', { class: 'shared-grid' }, list.map((pr) => h('div', { class: 'card' },
-      h('h3', {}, pr.title),
-      h('div', { class: 'meta' }, pr.td ? pr.td + ' ' : '',
-        started.has(pr.id) ? h('span', { class: 'badge pub' }, 'Commencé') : '', ' ',
-        pr.run_enabled ? '' : h('span', { class: 'badge off' }, 'Exécution désactivée')),
-      pr.instructions ? h('p', { class: 'consigne' }, pr.instructions) : null,
-      h('div', { class: 'row' },
-        h('button', { class: 'btn small primary', onclick: () => openMyProjectWork(pr) }, started.has(pr.id) ? 'Ouvrir mon travail' : 'Commencer'),
-        pr.share_work && state.me.can_view_others !== false
-          ? h('button', { class: 'btn small', onclick: () => showView('projects/' + pr.id) }, 'Voir le travail des autres') : null)))));
+    body.replaceChildren(...byTd(list).flatMap(([td, projects]) => [
+      h('h2', { class: 'group-title' }, td),
+      h('div', { class: 'shared-grid' }, projects.map((pr) => h('div', { class: 'card' },
+        h('h3', {}, pr.title),
+        h('div', { class: 'meta' },
+          started.has(pr.id) ? h('span', { class: 'badge pub' }, 'Commencé') : '', ' ',
+          pr.run_enabled ? '' : h('span', { class: 'badge off' }, 'Exécution désactivée')),
+        pr.instructions ? h('p', { class: 'consigne' }, pr.instructions) : null,
+        h('div', { class: 'row' },
+          h('button', { class: 'btn small primary', onclick: () => openMyProjectWork(pr) }, started.has(pr.id) ? 'Ouvrir mon travail' : 'Commencer'),
+          pr.share_work && state.me.can_view_others !== false
+            ? h('button', { class: 'btn small', onclick: () => showView('projects/' + pr.id) }, 'Voir le travail des autres') : null)))),
+    ]));
   } catch (e) { body.replaceChildren(empty(e.message)); }
 }
 
+// Projets rangés par TD (ordre naturel : TD1, TD2… TD10), du plus ancien au plus récent dans chaque TD
+function byTd(list) {
+  const groups = new Map();
+  for (const p of list) {
+    const k = p.td || 'Sans TD';
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(p);
+  }
+  for (const g of groups.values()) g.sort((x, y) => (x.created_at < y.created_at ? -1 : 1));
+  return [...groups].sort(([x], [y]) => x.localeCompare(y, 'fr', { numeric: true }));
+}
+
 function drawAdminProjects(body, list) {
-  const toggle = (pr, key, label) => h('label', {},
+  const toggle = (pr, key, label, redraw = false) => h('label', {},
     h('input', {
       type: 'checkbox', checked: !!pr[key],
       onchange: async (e) => {
         const v = e.target.checked;
-        try { await state.backend.saveProject({ id: pr.id, [key]: v }); pr[key] = v; toast('Projet mis à jour ✓'); }
+        try { await state.backend.saveProject({ id: pr.id, [key]: v }); pr[key] = v; toast('Projet mis à jour ✓'); if (redraw) drawAdminProjects(body, list); }
         catch (err) { e.target.checked = !v; toast(err.message, 'err'); }
       },
     }), label);
+  const setTdVisible = async (projects, visible) => {
+    try {
+      await state.backend.setProjectsFlags(projects.map((x) => x.id), { visible });
+      for (const x of projects) x.visible = visible;
+      toast(visible ? 'TD visible par les étudiants ✓' : 'TD masqué ✓');
+      drawAdminProjects(body, list);
+    } catch (err) { toast(err.message, 'err'); }
+  };
+  const hiddenCount = list.filter((x) => !x.visible).length;
   const head = h('div', { class: 'admin-tools' },
     h('button', { class: 'btn primary', onclick: () => openProjectDialog() }, '+ Nouveau projet'),
-    h('span', { class: 'stat' }, `${list.length} projet(s)`));
+    h('span', { class: 'stat' }, `${list.length} projet(s)${hiddenCount ? ` · ${hiddenCount} masqué(s)` : ''}`));
   if (!list.length) return body.replaceChildren(head, empty('Aucun projet. Crée le premier avec « Nouveau projet ».'));
-  body.replaceChildren(head, h('div', { class: 'shared-grid' }, list.map((pr) => h('div', { class: 'card' },
-    h('h3', {}, pr.title),
-    h('div', { class: 'meta' }, pr.td ? pr.td + ' · ' : '', 'créé le ', fmtDate(pr.created_at)),
-    pr.instructions ? h('p', { class: 'consigne' }, pr.instructions) : null,
-    h('div', { class: 'toggles' },
-      toggle(pr, 'run_enabled', 'Exécution autorisée'),
-      toggle(pr, 'share_work', 'Les étudiants voient le travail des autres')),
-    h('div', { class: 'row' },
-      h('button', { class: 'btn small primary', onclick: () => showView('projects/' + pr.id) }, 'Travail des étudiants'),
-      h('button', { class: 'btn small', onclick: () => openProjectDialog(pr) }, 'Modifier'),
-      h('button', { class: 'btn small danger', onclick: () => removeProject(pr) }, 'Supprimer'))))));
+  body.replaceChildren(head, ...byTd(list).flatMap(([td, projects]) => [
+    h('div', { class: 'td-head' },
+      h('h2', { class: 'group-title' }, td),
+      h('span', { class: 'td-actions' },
+        h('button', { class: 'link', onclick: () => setTdVisible(projects, true) }, 'tout afficher'), ' · ',
+        h('button', { class: 'link', onclick: () => setTdVisible(projects, false) }, 'tout masquer'))),
+    h('div', { class: 'shared-grid' }, projects.map((pr) => h('div', { class: 'card' + (pr.visible ? '' : ' hidden-proj') },
+      h('h3', {}, pr.title),
+      h('div', { class: 'meta' }, 'créé le ', fmtDate(pr.created_at), ' ',
+        pr.visible ? '' : h('span', { class: 'badge off' }, 'Masqué'), ' ',
+        pr.visible && pr.hidden_for && pr.hidden_for.length ? h('span', { class: 'badge tpl' }, `Masqué pour ${pr.hidden_for.length} étudiant(s)`) : ''),
+      pr.instructions ? h('p', { class: 'consigne' }, pr.instructions) : null,
+      h('div', { class: 'toggles' },
+        toggle(pr, 'visible', 'Visible par les étudiants', true),
+        toggle(pr, 'run_enabled', 'Exécution autorisée'),
+        toggle(pr, 'share_work', 'Les étudiants voient le travail des autres')),
+      h('div', { class: 'row' },
+        h('button', { class: 'btn small primary', onclick: () => showView('projects/' + pr.id) }, 'Travail des étudiants'),
+        h('button', { class: 'btn small', onclick: () => openProjectDialog(pr) }, 'Modifier'),
+        h('button', { class: 'btn small danger', onclick: () => removeProject(pr) }, 'Supprimer'))))),
+  ]));
 }
 
 async function openProjectWorkById(id) {
@@ -606,7 +640,7 @@ async function openMyProjectWork(pr) {
   try {
     const mine = (await state.backend.listProjectWork(pr.id)).find((p) => p.owner === state.me.id);
     if (mine) setDoc({ id: mine.id, owner: mine.owner, author: mine.author, title: mine.title, td: mine.td, code: mine.code, project: pr });
-    else setDoc({ title: pr.title, td: pr.td, code: pr.starter_code || state.modele, project: pr });
+    else setDoc({ title: pr.title, td: pr.td, code: pr.starter_code || '', project: pr });
     con.clear(); showView('editor');
     if (!mine) toast('Projet ouvert : clique sur « Enregistrer » pour garder ton travail.');
   } catch (e) { toast(e.message, 'err'); }
@@ -623,10 +657,23 @@ async function removeProject(pr) {
 
 let editingProject = null;
 function projectMsg(text) { const m = $('#project-msg'); m.textContent = text; m.hidden = !text; }
-function openProjectDialog(pr = null) {
+async function openProjectDialog(pr = null) {
   editingProject = pr;
   const f = $('#project-form');
   f.reset();
+  // liste des étudiants pour « Masquer pour certains étudiants seulement »
+  const box = $('#p-students');
+  const hidden = new Set((pr && pr.hidden_for) || []);
+  const count = () => { const n = $$('#p-students input:checked').length; $('#p-hidden-count').textContent = n ? `(${n})` : ''; };
+  box.textContent = 'Chargement…';
+  state.backend.listStudents().then((students) => {
+    box.replaceChildren(...(students.length ? students.map((st) => h('label', {},
+      h('input', { type: 'checkbox', value: st.id, checked: hidden.has(st.id), onchange: count }), st.pseudo))
+      : [h('span', { class: 'muted' }, 'Aucun étudiant inscrit pour l\'instant.')]));
+    count();
+  }).catch((e) => { box.textContent = e.message; });
+  $('#p-hidden-count').textContent = hidden.size ? `(${hidden.size})` : '';
+  $('details.hidden-for').open = hidden.size > 0;
   $('#project-title').textContent = pr ? 'Modifier le projet' : 'Nouveau projet';
   $('#project-submit').textContent = pr ? 'Enregistrer' : 'Créer le projet';
   if (pr) {
@@ -634,6 +681,7 @@ function openProjectDialog(pr = null) {
     $('#p-instructions').value = pr.instructions || ''; $('#p-code').value = pr.starter_code || '';
     f.elements['p-run'].value = pr.run_enabled ? '1' : '0';
     f.elements['p-share'].value = pr.share_work ? '1' : '0';
+    f.elements['p-visible'].value = pr.visible === false ? '0' : '1';
   }
   projectMsg('');
   $('#project-dialog').showModal();
@@ -646,6 +694,8 @@ async function submitProject(e) {
     title: $('#p-title').value.trim(), td: $('#p-td').value.trim(),
     instructions: $('#p-instructions').value.trim(), starter_code: $('#p-code').value,
     run_enabled: f.elements['p-run'].value === '1', share_work: f.elements['p-share'].value === '1',
+    visible: f.elements['p-visible'].value === '1',
+    hidden_for: $$('#p-students input:checked').map((x) => x.value),
   };
   if (!fields.title) return projectMsg('Donne un titre au projet.');
   const btn = $('#project-submit'); btn.disabled = true;
@@ -720,7 +770,7 @@ async function logout() {
   if (!confirmDiscard()) return;
   await state.backend.signOut();
   state.me = null;
-  setDoc({ code: state.modele, opened: false });
+  setDoc({ code: '', opened: false });
   renderAuthBox();
   con.clear();
   showView('home');
@@ -780,7 +830,7 @@ async function init() {
     fetch('lang/exemples/index.json').then((r) => r.json()).catch(() => []),
   ]);
   state.modele = modele; state.examples = examples;
-  state.cm.setValue(modele); state.cm.clearHistory(); setDirty(false);
+  state.cm.setValue(''); state.cm.clearHistory(); setDirty(false);   // éditeur vide au départ
 
   // --- options de la console ---
   $('#opt-nl').checked = pref.get('nl', String(!!state.lang.options.sortirRetourLigne)) === 'true';

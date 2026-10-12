@@ -703,6 +703,22 @@ fin`);
   await as('a@x.fr');
   await B.setAllStudents({ can_run: false });
   ok('permissions : réglage pour tous les étudiants', (await B.listStudents()).every((s) => s.can_run === false));
+  // visibilité : projet masqué (en préparation) ou masqué pour certains étudiants
+  const prep = await B.saveProject({ title: 'TD5 ex1', td: 'TD5', visible: false });
+  const ex2 = await B.saveProject({ title: 'TD5 ex2', td: 'TD5', visible: true, hidden_for: [alice.id] });
+  await as('bob@x.fr');
+  ok('visibilité : un projet masqué est invisible pour les étudiants', !(await B.listProjects()).some((p) => p.id === prep.id));
+  ok('visibilité : getProject refuse un projet masqué', (await B.getProject(prep.id)) === null);
+  await refuse('visibilité : impossible d\'enregistrer dans un projet masqué', () => B.save({ title: 'x', td: '', code: '', project_id: prep.id }));
+  ok('visibilité : bob voit l\'exercice qui n\'est masqué que pour alice', (await B.listProjects()).some((p) => p.id === ex2.id));
+  await as('alice@x.fr');
+  ok('visibilité : alice ne voit pas l\'exercice masqué pour elle', !(await B.listProjects()).some((p) => p.id === ex2.id));
+  await as('a@x.fr');
+  ok('visibilité : l\'admin voit tout', (await B.listProjects()).filter((p) => p.td === 'TD5').length === 2);
+  await B.setProjectsFlags([prep.id, ex2.id], { visible: true });
+  await as('bob@x.fr');
+  ok('visibilité : « tout afficher » sur un TD rend ses projets visibles', (await B.listProjects()).some((p) => p.id === prep.id));
+  await as('a@x.fr');
   await B.removeProject(pr.id);
   ok('permissions : supprimer un projet garde le travail (devient libre)', (await B.listAll()).some((p) => p.id === w.id && p.project_id === null));
 

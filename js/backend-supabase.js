@@ -112,6 +112,10 @@ export function createSupabaseBackend(cfg) {
       const { data, error } = await q.select('*').single();
       fail(error); return data;
     },
+    async setProjectsFlags(ids, patch) {
+      const { error } = await sb.from('projects').update(patch).in('id', ids);
+      fail(error);
+    },
     async removeProject(id) {
       const { error } = await sb.from('projects').delete().eq('id', id);
       fail(error);

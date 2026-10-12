@@ -50,12 +50,24 @@ create table if not exists public.projects (
   starter_code text not null default '',        -- code de départ donné aux étudiants
   run_enabled  boolean not null default true,   -- exécution autorisée dans ce projet
   share_work   boolean not null default false,  -- les étudiants voient le travail des autres
+  visible      boolean not null default true,   -- visible par les étudiants (décoché = en préparation)
+  hidden_for   uuid[]  not null default '{}',   -- étudiants pour qui le projet reste invisible
   created_at   timestamptz not null default now(),
   updated_at   timestamptz not null default now()
 );
+alter table public.projects add column if not exists visible    boolean not null default true;
+alter table public.projects add column if not exists hidden_for uuid[]  not null default '{}';
 alter table public.projects enable row level security;
+
+-- « ce projet est-il ouvert pour moi ? » = visible ET je ne suis pas dans la liste des masqués (l'admin voit tout)
+create or replace function public.can_use_project(pid uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select public.is_admin() or exists (
+    select 1 from public.projects p where p.id = pid and p.visible and not (auth.uid() = any(p.hidden_for)));
+$$;
 drop policy if exists "projets lisibles" on public.projects;
-create policy "projets lisibles" on public.projects for select to authenticated using (true);
+create policy "projets lisibles" on public.projects for select to authenticated
+  using (public.is_admin() or (visible and not (auth.uid() = any(hidden_for))));
 drop policy if exists "projets admin" on public.projects;
 create policy "projets admin" on public.projects for all to authenticated
   using (public.is_admin()) with check (public.is_admin());
@@ -81,6 +93,7 @@ $$;
 create or replace function public.can_see_work(pid uuid) returns boolean
 language sql stable security definer set search_path = public as $$
   select pid is not null
+    and public.can_use_project(pid)
     and coalesce((select share_work from public.projects where id = pid), false)
     and coalesce((select can_view_others from public.profiles where id = auth.uid()), false);
 $$;
@@ -90,11 +103,14 @@ drop policy if exists "creation"     on public.programs;
 drop policy if exists "modification" on public.programs;
 create policy "lecture" on public.programs for select to authenticated
   using (owner = auth.uid() or published or is_template or public.is_admin() or public.can_see_work(project_id));
+-- un étudiant n'enregistre que dans un projet ouvert pour lui, ou hors projet s'il a droit aux programmes libres
 create policy "creation" on public.programs for insert to authenticated
-  with check (public.is_admin() or (owner = auth.uid() and (project_id is not null or public.can_free())));
+  with check (public.is_admin() or (owner = auth.uid() and
+    (case when project_id is null then public.can_free() else public.can_use_project(project_id) end)));
 create policy "modification" on public.programs for update to authenticated
   using (owner = auth.uid() or public.is_admin())
-  with check (public.is_admin() or (owner = auth.uid() and (project_id is not null or public.can_free())));
+  with check (public.is_admin() or (owner = auth.uid() and
+    (case when project_id is null then public.can_free() else public.can_use_project(project_id) end)));
 
 -- Garde-fou (remplace l'ancien) : un étudiant ne peut pas déplacer un programme d'un projet à l'autre
 -- ni renommer son travail de projet.
